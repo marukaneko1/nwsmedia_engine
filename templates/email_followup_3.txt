@@ -1,0 +1,16 @@
+Subject: still interested or should I move on?
+
+{{ first_name | default("Hey") }},
+
+I've sent a couple of notes about {{ company_name }}'s website. Totally get it if you're busy — running a {{ category | default('business') }} doesn't leave a lot of time for website stuff.
+
+Just want to know which camp you're in:
+
+A) "Yeah this is on my radar, let's talk" → grab a time here: https://calendly.com/shunya-nwsmedia/30min
+B) "Not right now, maybe later" → just reply "later" and I'll check back in a few months
+C) "Not interested" → reply "pass" and I'll delete your file, no hard feelings
+
+{% if review_count and rating -%}
+Whichever it is — {{ review_count }} reviews at {{ rating }} stars is no joke. {{ company_name }} is clearly the real deal.
+{% endif %}
+{{ sender_name }}

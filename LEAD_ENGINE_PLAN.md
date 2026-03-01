@@ -168,7 +168,7 @@
 
 **Data Store**: PostgreSQL (leads from both channels, audits, scores, outreach status)
 **Queue**: Redis + Celery (async task processing for both pipelines)
-**Dashboard**: Next.js admin panel (view leads, scores, outreach stats, channel breakdown)
+**Dashboard + CRM**: Unified web app on subdomain of nwsmedia.com (e.g. `app.nwsmedia.com` or `leads.nwsmedia.com`) — pipeline board (Lead → Replied → Meeting → Proposal → Won/Lost), lead list, stats, and config (Phase 6).
 
 ---
 
@@ -214,14 +214,17 @@
 | Audit PDF Generation | WeasyPrint or Puppeteer | Auto-generate branded PDF reports |
 | Email Templates | Jinja2 | Dynamic variable injection |
 | Postcard Templates | HTML + Lob.com rendering | Branded welcome postcards for LLC leads |
-| CRM | Built-in (PostgreSQL) or Pipedrive/HubSpot | Track lead lifecycle across both channels |
+| CRM | Built into Phase 6 Dashboard (unified web app) | Pipeline board + lifecycle in same app as stats and lead list; no separate Notion/Trello required |
 
-### Dashboard (Optional Phase 6)
+### Dashboard + CRM (Phase 6 — Unified Web App)
 | Component | Technology | Why |
 |---|---|---|
-| Frontend | Next.js 14 + Tailwind CSS | Fast admin panel |
-| Charts | Recharts or Chart.js | Visualize pipeline metrics |
-| Auth | NextAuth.js | Simple login for you |
+| Hosting | Subdomain of nwsmedia.com (e.g. `app.nwsmedia.com`, `leads.nwsmedia.com`) | Single branded app for pipeline and ops |
+| Frontend | Next.js 14 + Tailwind CSS | Fast admin panel + CRM pipeline view |
+| CRM pipeline | Kanban or column view (Lead → Replied → Meeting → Proposal → Won → Lost) | Replace Notion/Trello; segment tags (ESTABLISHED / NEW_SMALL) per card |
+| Charts | Recharts or Chart.js | Pipeline metrics, reply rates, channel breakdown |
+| Auth | NextAuth.js | Simple login for you (and optional team) |
+| Data | Reads/writes `lead_lifecycle`, `outreach_log`, `businesses`; read-only audit/enrichment/score | Full integration with existing DB |
 
 ---
 
@@ -745,22 +748,33 @@ def calculate_lead_score(business: dict, triage: str, audit: dict | None) -> int
     elif audit and audit["pagespeed"]["seo_score"] < 70:
         score += 4
 
-    # === BUSINESS HEALTH SIGNALS (max 25 points) ===
-    # High reviews + bad website = proven business that should invest
+    # === BUSINESS HEALTH SIGNALS (max 25 points) — segment-aware ===
+    # Assign segment: ESTABLISHED (21+ reviews) vs NEW_SMALL (0-20 or NO_WEBSITE)
+    # For ESTABLISHED: high reviews + bad website = proven business that should invest
+    # For NEW_SMALL: no/poor website = opportunity; don't penalise low reviews
     review_count = business.get("review_count", 0)
     rating = business.get("rating", 0)
+    segment = "NEW_SMALL" if (triage == "NO_WEBSITE" or review_count <= 20) else "ESTABLISHED"
 
-    if review_count >= 100 and rating >= 4.0:
-        score += 15  # Established, successful business
-    elif review_count >= 50 and rating >= 4.0:
-        score += 12
-    elif review_count >= 20 and rating >= 3.5:
-        score += 8
-    elif review_count >= 5:
-        score += 4
-    # New business with few reviews
-    elif review_count < 5 and review_count > 0:
-        score += 6  # Just opened — likely needs everything
+    if segment == "ESTABLISHED":
+        if review_count >= 100 and rating >= 4.0:
+            score += 15
+        elif review_count >= 50 and rating >= 4.0:
+            score += 12
+        elif review_count >= 20 and rating >= 3.5:
+            score += 8
+        else:
+            score += 4
+    else:
+        # NEW_SMALL: website absence/poor = opportunity (e.g. NO_WEBSITE → +18)
+        if triage == "NO_WEBSITE":
+            score += 18
+        elif triage in ("DEAD_WEBSITE", "FREE_SUBDOMAIN"):
+            score += 15
+        elif review_count <= 5:
+            score += 12
+        else:
+            score += 10
 
     # Bonus: has photos (shows they care about their brand)
     if business.get("photos_count", 0) > 10:
@@ -788,6 +802,21 @@ def calculate_lead_score(business: dict, triage: str, audit: dict | None) -> int
 | **COOL** | 40-59 | Queue for batch outreach, light personalization | ~25-30% of leads |
 | **COLD** | 20-39 | Low priority, drip nurture only | ~20-25% of leads |
 | **SKIP** | 0-19 | Good website, don't contact | ~20-30% of leads |
+
+### Lead Segments (Channel 1)
+
+Leads are assigned a **segment** so you can use different messaging and track reply/close rates separately:
+
+| Segment | Definition | Messaging angle |
+|---|---|---|
+| **ESTABLISHED** | 21+ reviews (any website status) | "Your website has these specific problems" / upgrade / outrank competitors |
+| **NEW_SMALL** | 0–20 reviews, or NO_WEBSITE with any rating | "Get a real site before competitors outrank you" / "First professional site so you look established" |
+
+**Why segment:** High-review businesses are proven and likely have budget; low-review or no-website businesses are newer/smaller but still need a site. Use different email copy and optional lighter touch (e.g. fewer follow-ups) for NEW_SMALL until you have data.
+
+**Scoring:** For NEW_SMALL, scoring treats website absence or poor quality as *opportunity* (e.g. NO_WEBSITE gets a business-health bonus) so they don’t all land in COLD. ESTABLISHED keeps the original health logic (more reviews + good rating = more points).
+
+**Tracking:** Store `segment` on `lead_scores` and `outreach_log`. After 2–3 months, compare reply rate and close rate for ESTABLISHED vs NEW_SMALL; if NEW_SMALL underperforms, consider batch emails or fewer follow-ups for that segment.
 
 ---
 
@@ -1149,6 +1178,10 @@ LEAD STATUSES:
   lost         → Declined / no response after full sequence
   disqualified → Bad data, out of business, etc.
 ```
+
+### 9.4 CRM UI — Phase 6 Dashboard + CRM (Unified Web App)
+
+Lifecycle status is managed in the **Phase 6 Dashboard + CRM** — a single web app on a subdomain of nwsmedia.com (e.g. `app.nwsmedia.com`). The app shows a pipeline board (Lead → Replied → Meeting → Proposal → Won → Lost), with each card tied to `lead_lifecycle` and segment (ESTABLISHED / NEW_SMALL). Moving a card updates `lead_lifecycle.status` in PostgreSQL. There is no separate Notion/Trello CRM; the dashboard is the CRM. See [Phase 6: Dashboard + CRM](#phase-6-dashboard--crm--unified-web-app-week-7-9) for the full plan and integration.
 
 ---
 
@@ -1993,6 +2026,7 @@ CREATE TABLE lead_scores (
     score           INTEGER NOT NULL CHECK (score >= 0 AND score <= 100),
     tier            VARCHAR(10) NOT NULL,
     -- HOT, WARM, COOL, COLD, SKIP
+    segment         VARCHAR(20),  -- ESTABLISHED (21+ reviews), NEW_SMALL (0-20 or NO_WEBSITE)
     score_breakdown JSONB,
     scored_at       TIMESTAMP DEFAULT NOW(),
     UNIQUE(business_id)
@@ -2017,6 +2051,7 @@ CREATE TABLE outreach_log (
     llc_filing_id   BIGINT REFERENCES llc_filings(id),  -- set if lead came from Channel 2
     source_channel  VARCHAR(20) NOT NULL,  -- google_maps, llc_filing
     outreach_type   VARCHAR(20) NOT NULL,  -- email, postcard, letter, linkedin
+    segment         VARCHAR(20),  -- ESTABLISHED, NEW_SMALL (for reply/close rate tracking)
     email_sent_to   VARCHAR(255),
     campaign_id     VARCHAR(255),
     status          VARCHAR(50) NOT NULL,
@@ -2132,8 +2167,10 @@ CREATE INDEX idx_businesses_category ON businesses(category);
 CREATE INDEX idx_businesses_city ON businesses(city);
 CREATE INDEX idx_lead_scores_tier ON lead_scores(tier);
 CREATE INDEX idx_lead_scores_score ON lead_scores(score DESC);
+CREATE INDEX idx_lead_scores_segment ON lead_scores(segment);
 CREATE INDEX idx_lead_lifecycle_status ON lead_lifecycle(status);
 CREATE INDEX idx_outreach_log_status ON outreach_log(status);
+CREATE INDEX idx_outreach_log_segment ON outreach_log(segment);
 
 -- Indexes for common queries (Channel 2)
 CREATE INDEX idx_llc_filings_state ON llc_filings(state);
@@ -2188,45 +2225,146 @@ CREATE INDEX idx_llc_filings_lead_status ON llc_filings(lead_status);
 
 ## 16. Niche Targeting Strategy
 
-### Tier 1 — Highest Value (Start Here)
+### NWS Media — Selected Top 3 Niches
 
-These industries have high average project values ($3K-$15K+), frequent need for websites, and are Google Maps-dense:
+Based on analysis of project value, website quality gap, Maps density, cold email receptiveness, decision-maker accessibility, and willingness to pay, the following three niches are selected for initial launch:
 
-| Niche | Why | Avg Project Value | Maps Density |
-|---|---|---|---|
-| **Dentists** | Every city has dozens, often bad sites | $5K-$15K | Very High |
-| **Lawyers** | High-value clients, need credibility | $5K-$20K | Very High |
-| **Med Spas / Dermatology** | Aesthetic industry, brand-focused | $5K-$15K | High |
-| **Contractors (HVAC, Plumbing, Roofing)** | Huge local search volume | $3K-$8K | Very High |
-| **Real Estate Agents** | Personal branding, IDX sites | $3K-$8K | Very High |
+#### Niche 1: Home Service Contractors (HVAC, Plumbing, Roofing, Electrical)
 
-### Tier 2 — High Volume
+**Why this is #1:**
+- **Worst websites in any industry.** 75-80% of contractor sites are outdated (pre-2020 designs), not mobile-friendly, and load slowly. Many still use GoDaddy or Wix templates from 2015. This makes the audit-based pitch devastating — almost every contractor will have clear, embarrassing issues to show them.
+- **Massive Maps density.** Every city has hundreds of HVAC, plumbing, roofing, and electrical contractors. A single metro area like Houston or Dallas yields 500+ listings per sub-niche. Unlimited scraping targets.
+- **Owner is the decision-maker.** Unlike dental offices (where a practice manager may gatekeep) or law firms (where a marketing director handles vendors), contractors are usually the owner themselves. One email, one decision. Short sales cycle.
+- **They already spend on leads.** Contractors spend $144-$181 per lead on average (HomeAdvisor, Angi, Google Ads). They understand paying for business growth. A $3K-$5K website that generates organic leads is an easy sell against their $1,500-$4,000/mo ad spend.
+- **High urgency.** 90% of their traffic is mobile. A contractor with a slow, non-mobile site is literally losing emergency calls (burst pipes, AC failures, roof leaks) to competitors. This creates urgency in the pitch.
+- **Sub-niche diversity.** If one sub-niche saturates in a city, pivot to another: HVAC → plumbing → roofing → electrical → landscaping → painting → fencing → concrete. Dozens of sub-categories, all with the same problems.
 
-| Niche | Why | Avg Project Value | Maps Density |
-|---|---|---|---|
-| **Restaurants** | Massive volume, many bad sites | $2K-$5K | Extremely High |
-| **Auto Repair / Body Shops** | Local-dependent, often outdated | $2K-$5K | Very High |
-| **Salons / Barbershops** | Brand-focused, booking integration | $2K-$5K | Very High |
-| **Gyms / Fitness Studios** | Membership-driven, need conversions | $3K-$8K | High |
-| **Veterinarians** | Trust-dependent, bad sites common | $3K-$8K | High |
+| Metric | Value |
+|---|---|
+| Avg project value | $3,000–$8,000 |
+| Maps density per metro | Very High (200–600+ per sub-niche) |
+| Website quality gap | Extreme (most sites are 5+ years old) |
+| Decision-maker access | Direct (owner = decision-maker) |
+| Cold email receptiveness | High (they already buy leads) |
+| Search terms | `"HVAC" "plumber" "roofer" "electrician" "contractor" "handyman"` |
 
-### Tier 3 — Expansion
+#### Niche 2: Dental Practices
 
-| Niche | Why | Avg Project Value |
+**Why this is #2:**
+- **Consistently bad websites.** Dental websites are notorious for outdated designs, stock photos, Comic Sans fonts, and "call us to schedule" instead of online booking. 6 clear signs an outdated dental site was built in 2012 (copyright dates, non-responsive layouts, Flash elements, no online scheduling, poor imagery, and slow load times) are present on the majority of practices.
+- **High project value.** Dental websites command $5K-$15K because practices need patient portals, online scheduling integration, insurance verification, before/after galleries, and HIPAA compliance signals. This is 2-3x what a contractor site costs.
+- **70% of dental searches are mobile.** Yet most dental sites aren't mobile-optimized. This is a damning audit finding that resonates with dentists who see competitors ranking above them.
+- **Recurring revenue potential.** Dentists need monthly SEO, Google Business Profile management, review generation, and content updates. A $500-$1,500/mo retainer after the initial build is common and expected.
+- **Trust-dependent industry.** Patients choose dentists based on the website's credibility signals (reviews, staff photos, office tour, certifications). A bad website directly costs them patients — and they know it.
+- **Every city, every size.** A town of 20,000 has 5-10 dentists. A city of 500,000 has 200-400. The niche never runs out.
+
+| Metric | Value |
+|---|---|
+| Avg project value | $5,000–$15,000 |
+| Maps density per metro | Very High (50–400+ per city) |
+| Website quality gap | High (majority have outdated sites) |
+| Decision-maker access | Medium (owner dentist or office manager) |
+| Cold email receptiveness | Medium-High (understand ROI of online presence) |
+| Recurring revenue | $500–$1,500/mo (SEO, reviews, content) |
+| Search terms | `"dentist" "dental practice" "dental clinic" "orthodontist" "oral surgeon"` |
+
+#### Niche 3: Med Spas / Aesthetic Clinics
+
+**Why this is #3:**
+- **Brand is everything.** Med spas sell luxury aesthetic services (Botox, fillers, laser treatments, body contouring). Their website IS their brand. A cheap-looking site with stock photos signals "discount provider" in an industry where clients pay $500-$5,000 per treatment. This makes the pitch frictionless: "Your competitors look premium online. You don't."
+- **Highest project value of any local niche.** Med spa websites command $5K-$15K+ because they need professional photography integration, before/after galleries with consent management, online booking for specific treatments, provider bios, and a luxury aesthetic that matches their clinical environment.
+- **Booming industry.** The med spa industry grew 12-15% annually through 2024-2025. New locations are opening constantly. Many are opened by nurses, PAs, or physicians who are clinical experts but have zero marketing knowledge — prime targets.
+- **Visual audit is devastating.** A PageSpeed audit on a med spa matters more than almost any other niche because their clientele is image-conscious. A slow, ugly site in an industry that sells beauty is an ironic contradiction that hits hard in an outreach email.
+- **Affluent client base = higher willingness to pay.** Med spas generate $50K-$200K+/mo in revenue. A $10K website investment is trivial compared to their revenue. They're not price-sensitive the way a solo plumber might be.
+- **Growing Maps density.** Med spas are one of the fastest-growing Google Maps categories. Major metros have 100-300+ listings, and the number is increasing quarterly.
+
+| Metric | Value |
+|---|---|
+| Avg project value | $5,000–$15,000+ |
+| Maps density per metro | High (100–300+ in major metros) |
+| Website quality gap | Medium-High (many use templates, need luxury design) |
+| Decision-maker access | Medium (owner or practice manager) |
+| Cold email receptiveness | Medium (busy, but respond to premium positioning) |
+| Recurring revenue | $500–$2,000/mo (SEO, social, content, PPC management) |
+| Search terms | `"med spa" "medspa" "medical spa" "aesthetics clinic" "botox" "dermatology"` |
+
+### Why These 3 (and Not Others)
+
+| Niche considered | Verdict | Reason |
 |---|---|---|
-| Chiropractors | Similar to dentists, high Maps density | $3K-$8K |
-| Accountants / CPAs | Seasonal demand, credibility-driven | $3K-$8K |
-| Wedding Venues | High emotion purchase, visual-heavy | $5K-$15K |
-| Photography Studios | Should have great sites, often don't | $2K-$5K |
-| Cleaning Services | High volume, mostly no websites | $1.5K-$4K |
+| **Lawyers** | Rejected for now | High project value ($5K-$20K) but very competitive outreach space. Law firms get bombarded by marketing agencies. Also, many use established legal marketing firms (FindLaw, Avvo) with contracts. Harder to break in. Add as Tier 2 expansion. |
+| **Restaurants** | Rejected for now | Extremely high volume but very low project value ($2K-$5K) and razor-thin margins. Owners are notoriously hard to reach (in the kitchen, not checking email). High churn — restaurants close at 60% rate within 3 years. |
+| **Real Estate Agents** | Rejected for now | Many already have brokerage-provided sites. Those who want custom sites are a small subset. IDX integration is technically complex and niche. Better as a specialty add-on than a primary target. |
+| **Salons / Barbershops** | Rejected for now | Low project value ($2K-$4K) and owners are often not tech-savvy enough to respond to cold email. Better reached through direct mail (Channel 2). |
+| **Auto Repair** | Rejected for now | Good volume but lower project value and many are franchise/chain operations with corporate-managed websites. Independent shops are the target, but harder to filter. |
 
-### Geographic Expansion Order
+### Geographic Strategy for NWS Media
 
-1. **Start local** — Your city + surrounding 25 miles
-2. **Expand regionally** — Top 3-5 cities in your state
-3. **Go state-wide** — All cities with 50K+ population
-4. **Neighboring states** — Same time zone, easy to service remotely
-5. **National** — Top 100 US metros by population
+Since NWS Media is based in Manhattan, NY and delivers services remotely, the geographic strategy prioritizes high-population metros across the US rather than local-only:
+
+**Phase 1 — Launch Markets (first 2-4 weeks of outreach):**
+
+| Metro | Why | Est. leads per niche |
+|---|---|---|
+| **Houston, TX** | Huge contractor density, fast-growing, sprawling suburbs with many small businesses | 400-600+ |
+| **Dallas-Fort Worth, TX** | Same as Houston, massive metro, lots of home services | 400-600+ |
+| **Atlanta, GA** | Fast-growing, diverse small business economy | 300-500+ |
+| **Phoenix, AZ** | Booming housing market = contractors; high med spa density | 300-500+ |
+| **Austin, TX** | Already scraped and validated; smaller but tech-affluent | 200-400+ |
+
+**Why not NYC first:** While NYC has enormous density, Manhattan businesses are expensive to service (higher expectations), more likely to have decent websites already, and the competition from other agencies targeting NYC is fierce. The metros above have more businesses with bad websites, lower agency competition, and equally good cold email receptiveness.
+
+**Phase 2 — Expansion Markets (weeks 4-8):**
+- Tampa / Miami, FL
+- Denver, CO
+- Nashville, TN
+- Charlotte, NC
+- San Antonio, TX
+- Las Vegas, NV
+- Orlando, FL
+
+**Phase 3 — National Scale (month 3+):**
+- Top 50 US metros by population, excluding those already covered
+
+### Search Config Seeds (for `search_configs` table)
+
+```python
+INITIAL_SEARCH_CONFIGS = [
+    # Niche 1: Home Service Contractors
+    {"niche": "HVAC contractor", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ", "Austin, TX"]},
+    {"niche": "plumber", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ", "Austin, TX"]},
+    {"niche": "roofer", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ", "Austin, TX"]},
+    {"niche": "electrician", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ", "Austin, TX"]},
+    {"niche": "general contractor", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ"]},
+    {"niche": "landscaping company", "locations": ["Houston, TX", "Dallas, TX", "Phoenix, AZ"]},
+
+    # Niche 2: Dental Practices
+    {"niche": "dentist", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ", "Austin, TX"]},
+    {"niche": "orthodontist", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ"]},
+
+    # Niche 3: Med Spas / Aesthetics
+    {"niche": "med spa", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ", "Austin, TX"]},
+    {"niche": "medical spa", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ"]},
+    {"niche": "aesthetics clinic", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA"]},
+]
+```
+
+### Estimated Volume at Launch
+
+| Niche | Sub-niches | Cities | Est. unique leads |
+|---|---|---|---|
+| Home Service Contractors | 6 | 5 | 3,000–5,000 |
+| Dental Practices | 2 | 5 | 1,000–2,000 |
+| Med Spas / Aesthetics | 3 | 5 | 500–1,000 |
+| **Total Phase 1** | **11** | **5** | **4,500–8,000** |
+
+### Niche-Specific Cold Email Angles
+
+**Contractors:** "I looked at your website on my phone — it took 14 seconds to load and the phone number was cut off. When someone's AC breaks at 2am and Googles 'HVAC emergency [city]', they're calling whoever loads first. Here's a free audit showing exactly what's costing you calls."
+
+**Dentists:** "I ran a quick website audit on [practice name]. Your site scores 23/100 on Google's PageSpeed test and doesn't have online scheduling. 70% of patients now book dentists on their phone — and your site forces them to pinch and zoom. Here's the full report."
+
+**Med Spas:** "Your Botox treatments look incredible based on your Instagram, but your website tells a different story — it loads in 8 seconds, has stock photos, and doesn't reflect the premium experience your clients actually get. I put together a quick audit."
 
 ---
 
@@ -2607,21 +2745,54 @@ All outreach emails must comply with the CAN-SPAM Act:
 
 **Deliverable**: Fully automated LLC filing pipeline that mails postcards and LinkedIn suggestions daily.
 
-### Phase 6: Dashboard + Optimization (Week 7-9) — Optional
+### Phase 6: Dashboard + CRM — Unified Web App (Week 7-9)
 
-**Goal**: Visual interface to monitor and manage leads from both channels.
+**Goal**: Single web application on a subdomain of **nwsmedia.com** that replaces a separate CRM board (Notion/Trello) and provides the operational dashboard for both lead channels. One app for pipeline, lead management, and stats.
 
-| Task | Details | Days |
-|---|---|---|
-| Next.js dashboard | Lead list, search, filters, score display | 3 |
-| Lead detail page | Full audit results, enrichment data, outreach history | 2 |
-| LLC filing view | Filing details, classification, mail status, LinkedIn status | 1.5 |
-| Pipeline stats | Charts: leads/day, scores distribution, reply rates, channel breakdown | 1.5 |
-| Search config editor | Add/edit niches, locations, and LLC state configs via UI | 1 |
-| Score weight tuning | Adjust scoring weights for both channels via UI | 0.5 |
-| Direct mail tracker | View postcard/letter statuses, delivery confirmations | 1 |
+**Subdomain**: e.g. `app.nwsmedia.com` or `leads.nwsmedia.com` (you choose; DNS CNAME + SSL via hosting provider).
 
-**Deliverable**: Admin dashboard for managing both lead channels.
+---
+
+#### 6.1 Detailed Plan & Scope
+
+| Area | What | Purpose |
+|------|------|--------|
+| **CRM pipeline** | Board view: columns **Lead → Replied → Meeting → Proposal → Won → Lost**. Each card = one lead (business); show company name, segment tag (ESTABLISHED / NEW_SMALL), channel (Maps vs LLC). Drag-and-drop or click to move between columns. | Replace Notion/Trello; track deal stage and reply/close rate by segment. |
+| **Data source** | `lead_lifecycle` (status, `changed_at`, `notes`), joined with `businesses`, `outreach_log`, `lead_scores`. Status values align with columns: `contacted` → Lead, `replied` → Replied, `meeting` → Meeting, `proposal` → Proposal, `won` / `lost` → Won / Lost. | Single source of truth; pipeline and Python pipeline both read/write same DB. |
+| **Lead list** | Table view: search, filter by tier, channel, niche, city, segment. Click row → lead detail. | Find any lead; bulk-actions later if needed. |
+| **Lead detail** | One page per lead: business info, triage/audit summary, enrichment (email, owner), outreach history (Instantly campaign, sent_at), and **lifecycle status** with a dropdown or buttons to move to Replied / Meeting / Proposal / Won / Lost. | Full context for discovery calls and follow-up. |
+| **Pipeline stats** | Dashboard widgets: leads/day, score distribution, reply rate (overall and by segment), channel breakdown. | KPIs from Section 24; can be same metrics you track weekly/monthly. |
+| **Config (optional)** | Search config editor (niches, locations), LLC state config, score weight tuning. | Avoid editing DB or .env for routine tweaks. |
+| **Auth** | NextAuth.js (or similar): email/password or magic link. Only you (and optional team) can access. | Keep subdomain private. |
+| **Hosting** | Vercel, Railway, or same VPS as Celery: deploy Next.js app, point subdomain via CNAME, SSL automatic. | Subdomain live and HTTPS. |
+
+---
+
+#### 6.2 Integration with Existing Pipeline
+
+| Integration point | How |
+|-------------------|-----|
+| **New leads** | When `outreach` (or Celery) queues a lead to Instantly, insert or update `lead_lifecycle` with `status = 'contacted'` (or `queued`). Dashboard reads this; card appears in **Lead** column. |
+| **Replies / meetings** | You (or a webhook from Instantly later) update `lead_lifecycle.status` to `replied`, `meeting`, etc. Dashboard reflects the move; card moves to **Replied** or **Meeting**. |
+| **Segment & channel** | From `lead_scores.segment` and `outreach_log`/source: display ESTABLISHED vs NEW_SMALL and Channel 1 vs 2 on each card. Enables reply/close rate by segment (Section 24). |
+| **Read-only context** | Lead detail page fetches `businesses`, `triage_results`, `website_audits`, `enrichment_data`, `outreach_log` for that `business_id`. No need to duplicate data. |
+| **API** | Next.js app can call a small **backend API** (FastAPI or Next.js API routes) that uses the same PostgreSQL connection string as the Python pipeline. Backend runs queries and updates `lead_lifecycle`; frontend never touches DB directly. |
+
+---
+
+#### 6.3 Implementation Order (Suggested)
+
+| Step | Task | Days |
+|------|------|------|
+| 1 | Next.js project (Tailwind, auth, env for DB read-only) | 1 |
+| 2 | Backend API or serverless: list leads, get lead by id, update `lead_lifecycle.status` | 1 |
+| 3 | CRM pipeline view (columns, cards, segment tag, move between columns) | 2 |
+| 4 | Lead list (search, filters) + lead detail (audit, enrichment, outreach history, status change) | 2 |
+| 5 | Pipeline stats (leads/day, reply rate, by segment) | 1 |
+| 6 | Subdomain DNS + deploy (Vercel/Railway); SSL | 0.5 |
+| 7 | (Optional) Search config editor, LLC config, score tuning, direct mail tracker | 1–2 |
+
+**Deliverable**: One URL (e.g. `https://app.nwsmedia.com`) for pipeline board, lead list, lead detail, and stats — no separate CRM tool required.
 
 ---
 
@@ -2952,6 +3123,7 @@ Every system has failure points. Here's what can go wrong and how to handle it:
 |---|---|---|---|
 | Email open rate | >45% | >50% | <30% (deliverability problem) |
 | Email reply rate | >4% | >6% | <2% (messaging problem) |
+| **Reply rate by segment** (ESTABLISHED vs NEW_SMALL) | Track both | Compare after 2–3 months | If NEW_SMALL << ESTABLISHED, consider lighter touch (batch emails, fewer follow-ups) |
 | Postcard response rate | >2% | >3% | <1% (design or targeting problem) |
 | LinkedIn connection acceptance | >25% | >35% | <15% (note quality problem) |
 | Meetings booked | 4-8/week | 12-20/week | <2/week (funnel leak) |
@@ -2964,6 +3136,7 @@ Every system has failure points. Here's what can go wrong and how to handle it:
 |---|---|---|
 | **Cost per acquisition (CPA)** | <$75 | How efficiently the system generates clients |
 | **Close rate** (meetings → clients) | >15% | How effective your sales process is |
+| **Close rate by segment** (ESTABLISHED vs NEW_SMALL) | Track both | After 2–3 months, decide if low-review leads deserve same effort or lighter touch |
 | **Average project value** | >$3,500 | Whether you're targeting the right niches |
 | **Revenue per 1,000 leads scraped** | >$3,000 | Overall pipeline efficiency |
 | **Channel 1 vs Channel 2 ROI** | Both positive | Whether both channels are worth running |
@@ -2986,6 +3159,7 @@ Channel 2 (LLC):      [X] pulled  → [X] qualified → [X] contacted
 
 ═══ OUTREACH PERFORMANCE ═══
 Emails sent:          [X]     Open rate: [X]%    Reply rate: [X]%
+  By segment:         ESTABLISHED reply: [X]%   NEW_SMALL reply: [X]%
 Postcards mailed:     [X]     Response rate: [X]%
 LinkedIn requests:    [X]     Acceptance: [X]%
 
@@ -3064,16 +3238,16 @@ Everything you need before writing the first line of code:
 
 ### Business Prep (Do While Building)
 
-- [ ] Define your **top 3 niches** to target first (dentists, contractors, restaurants, etc.)
-- [ ] Define your **geographic focus** (your city + surrounding area)
+- [x] Define your **top 3 niches**: (1) Home Service Contractors (HVAC, plumbing, roofing, electrical), (2) Dental Practices, (3) Med Spas / Aesthetic Clinics — see Section 16
+- [x] Define your **geographic focus**: Phase 1 metros: Houston TX, Dallas TX, Atlanta GA, Phoenix AZ, Austin TX — see Section 16
 - [ ] Create a **booking link** for discovery calls (Calendly free tier works)
   - URL: https://calendly.com
 - [ ] Prepare a **discovery call script** (what to ask, what to offer)
 - [ ] Set your **pricing** for web design projects (know your floor and target)
 - [ ] Create a **portfolio page** with 3-5 example sites (even mockups count)
 - [ ] Prepare a **case study** or before/after example for outreach emails
-- [ ] Set up a **CRM column/board** for tracking leads through the sales process
-  - Can be as simple as a Notion board or Trello board while the pipeline DB is being built
+- [ ] Set up **CRM pipeline** for tracking leads (Lead → Replied → Meeting → Proposal → Won/Lost)
+  - Done via **Phase 6: Dashboard + CRM** unified web app on subdomain (e.g. `app.nwsmedia.com`). Until that is live, use a simple Notion/Trello board if needed.
 - [ ] Decide on your **physical return address** for direct mail (required on postcards)
 
 ### Pre-Launch Checklist (Before First Outreach)

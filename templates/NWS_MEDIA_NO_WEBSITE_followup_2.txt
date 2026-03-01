@@ -1,0 +1,16 @@
+Subject: quick question about {{ company_name }}
+
+{{ first_name }},
+
+Genuine question — where do most of {{ company_name }}'s new customers come from right now? Referrals? Google? Word of mouth?
+
+I ask because I recently worked with a {{ category }} in a similar spot — strong reviews, solid reputation, but a website that was actually hurting them in Google rankings. After we rebuilt it (took about 3 weeks), they went from page 2 to the top 3 results. Monthly calls doubled. No ad spend, just a site built to perform.
+
+The issues we fixed were the same ones I flagged for {{ company_name }} — speed, mobile experience, and SEO structure.
+
+Not trying to sell you anything with this email. Just thought it was relevant since the situations are so similar.
+
+If you're curious what that'd look like for {{ company_name }}, happy to share.
+
+All the best,
+NWS MEDIA

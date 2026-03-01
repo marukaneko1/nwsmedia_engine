@@ -1,0 +1,14 @@
+Subject: re: {{ company_name }}
+
+{{ first_name }} — circling back on this.
+
+I dug deeper into what's happening with {{ company_name }}'s site since my last note. The top-ranking {{ category }} in {{ city }} all have fast mobile-optimized sites with their Google reviews on the homepage. None of that is complicated — it's just that nobody's set it up for {{ company_name }} yet.
+
+I can walk through everything in 10 minutes. No pitch — just what I found and what I'd prioritize first.
+
+Here's my calendar if it's easier to just pick a time: https://calendly.com/shunya-nwsmedia/30min
+
+Or just reply here, either works.
+
+All the best,
+NWS MEDIA

@@ -1,0 +1,30 @@
+Subject: re: {{ company_name }}
+
+{{ first_name | default("Hey") }} — circling back on this.
+
+{% if segment == "NEW_SMALL" -%}
+I actually went ahead and looked at the top-ranking {{ category | default('businesses') }} in {{ city | default('your area') }} on Google. Every single one in the top 3 has:
+
+— A fast, mobile-optimized site
+— Their Google reviews displayed on the homepage
+— Location-specific pages targeting "{{ category | default('your service') }} in {{ city | default('your area') }}"
+
+None of this is complicated. It's just that nobody's set it up for {{ company_name }} yet.
+{% else -%}
+I dug deeper into what's happening with {{ company_name }}'s site since my last note.
+
+{% if not is_mobile_friendly -%}
+I pulled it up on my phone — text gets cut off, buttons overlap, and the menu barely works. Thing is, {{ "over 60%" }} of people searching for {{ category | default('businesses') }} in {{ city | default('your area') }} are doing it from their phone. That's your first impression for most new customers.
+{% elif performance_score is not none and performance_score < 40 -%}
+Compared your load time against the top 3 {{ category | default('businesses') }} ranking in {{ city | default('your area') }}. They load in under 2 seconds. Your site is significantly slower — and Google uses that as a direct ranking factor.
+{% else -%}
+Ran a quick competitive analysis — there are {{ category | default('businesses') }} in {{ city | default('your area') }} with half your reviews ranking above you on Google. The difference isn't their reputation, it's their website.
+{% endif -%}
+{% endif %}
+I can walk through everything in 10 minutes. No pitch — just what I found and what I'd prioritize first.
+
+Here's my calendar if it's easier to just pick a time: https://calendly.com/shunya-nwsmedia/30min
+
+Or just reply here, either works.
+
+{{ sender_name }}

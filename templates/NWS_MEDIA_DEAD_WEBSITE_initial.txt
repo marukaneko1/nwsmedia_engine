@@ -1,0 +1,18 @@
+Subject: ideas for {{ company_name }}
+
+Hi {{ first_name }},
+
+I came across {{ company_name }} — {{ review_count }} reviews, {{ rating }} stars. Clearly doing something right.
+
+I just tried pulling up {{ company_name }}'s website — {{ website }} isn't loading. Every customer who finds you on Google Maps and clicks through is hitting a dead page right now.
+
+I ran a quick diagnostic and found:
+
+→ The site is returning errors (likely a hosting or DNS issue)
+→ While it's down, Google is actively demoting your listing in search results
+→ Your competitors in {{ city }} are picking up the traffic you're losing
+
+Would it be useful if I sent over a one-page breakdown with the specific fixes? No cost, no catch — I genuinely think {{ company_name }} is leaving money on the table.
+
+All the best,
+NWS MEDIA

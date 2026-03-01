@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 1.2cm 1.8cm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a2e; font-size: 10pt; line-height: 1.45; }
+
+  .header { background: linear-gradient(135deg, #0f3460 0%, #16213e 100%); color: #fff; padding: 22px 26px; border-radius: 8px; margin-bottom: 16px; }
+  .header h1 { font-size: 19pt; margin-bottom: 2px; letter-spacing: -0.3px; }
+  .header .subtitle { font-size: 10pt; opacity: 0.85; }
+  .header .badge { display: inline-block; background: #e94560; color: #fff; font-size: 8pt; font-weight: 700; padding: 3px 10px; border-radius: 12px; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .meta { display: flex; justify-content: space-between; margin-bottom: 14px; font-size: 8.5pt; color: #555; }
+  .section { margin-bottom: 14px; }
+  .section h2 { font-size: 12pt; color: #0f3460; border-bottom: 2px solid #e94560; padding-bottom: 3px; margin-bottom: 8px; }
+
+  .score-row { display: flex; gap: 12px; margin-bottom: 14px; }
+  .score-card { flex: 1; background: #f8f9fa; border-radius: 8px; padding: 12px 8px; text-align: center; }
+  .score-card .value { font-size: 26pt; font-weight: 700; }
+  .score-card .label { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.5px; color: #666; margin-top: 2px; }
+  .good { color: #27ae60; }
+  .warn { color: #f39c12; }
+  .bad { color: #e74c3c; }
+
+  .issue { padding: 8px 12px; margin-bottom: 6px; border-left: 4px solid #e94560; background: #fff5f5; border-radius: 0 6px 6px 0; }
+  .issue.pass { border-left-color: #27ae60; background: #f0fff4; }
+  .issue .title { font-weight: 600; font-size: 9.5pt; }
+  .issue .detail { font-size: 8.5pt; color: #555; margin-top: 1px; }
+
+  /* Opportunity section */
+  .opp-grid { display: flex; gap: 12px; margin-bottom: 14px; }
+  .opp-card { flex: 1; background: #eef6ff; border-radius: 8px; padding: 14px 12px; text-align: center; border: 1px solid #c8dff5; }
+  .opp-card .opp-value { font-size: 22pt; font-weight: 700; color: #0f3460; }
+  .opp-card .opp-label { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin-top: 2px; }
+  .opp-card .opp-note { font-size: 7pt; color: #888; margin-top: 4px; }
+  .opp-card.highlight { background: #eafff0; border-color: #a3dbb8; }
+  .opp-card.highlight .opp-value { color: #1a8a42; }
+
+  .gain-list { margin: 0 0 10px 0; padding: 0; }
+  .gain-item { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; border-bottom: 1px solid #f0f0f0; }
+  .gain-item:last-child { border-bottom: none; }
+  .gain-icon { font-size: 13pt; flex-shrink: 0; width: 24px; text-align: center; }
+  .gain-text { font-size: 9pt; }
+  .gain-text strong { color: #0f3460; }
+
+  .before-after { display: flex; gap: 12px; margin-bottom: 10px; }
+  .ba-col { flex: 1; border-radius: 8px; padding: 12px; }
+  .ba-col.before { background: #fff5f5; border: 1px solid #f5c6cb; }
+  .ba-col.after { background: #eafff0; border: 1px solid #a3dbb8; }
+  .ba-col h3 { font-size: 9.5pt; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .ba-col.before h3 { color: #c0392b; }
+  .ba-col.after h3 { color: #1a8a42; }
+  .ba-col ul { margin: 0; padding-left: 16px; font-size: 8.5pt; color: #444; }
+  .ba-col ul li { margin-bottom: 3px; }
+
+  .cta { background: linear-gradient(135deg, #e94560 0%, #c0392b 100%); color: #fff; padding: 16px 22px; border-radius: 8px; text-align: center; margin-top: 14px; }
+  .cta h3 { font-size: 13pt; margin-bottom: 4px; }
+  .cta p { font-size: 9pt; opacity: 0.92; }
+  .cta .cta-link { display: inline-block; margin-top: 8px; background: #fff; color: #e94560; font-weight: 700; padding: 6px 18px; border-radius: 20px; font-size: 9pt; text-decoration: none; }
+
+  .footer { margin-top: 14px; text-align: center; font-size: 7.5pt; color: #999; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Website Audit Report</h1>
+  <p class="subtitle">{{ business_name }}{% if website %} &mdash; {{ website }}{% endif %}</p>
+  <span class="badge">Personalized for {{ owner_name | default(business_name) }}</span>
+</div>
+
+<div class="meta">
+  <span><strong>Category:</strong> {{ category | default("N/A") }}</span>
+  <span><strong>Rating:</strong> {{ rating | default("N/A") }} &#9733; ({{ review_count | default(0) }} reviews)</span>
+  <span><strong>Market:</strong> {{ city | default("N/A") }}</span>
+  <span><strong>Generated:</strong> {{ generated_date }}</span>
+</div>
+
+{# ========== CURRENT STATUS SECTION ========== #}
+
+{% if triage_status == "NO_WEBSITE" %}
+<div class="section">
+  <h2>Current Status</h2>
+  <div class="issue">
+    <div class="title">No Website Found</div>
+    <div class="detail">No website is listed on your Google Maps profile. When someone searches "{{ category | default('your service') }} in {{ city | default('your area') }}" and finds you, there is nothing to click through to. They see your competitors' sites instead and call them.</div>
+  </div>
+</div>
+
+{% elif triage_status == "DEAD_WEBSITE" %}
+<div class="section">
+  <h2>Current Status</h2>
+  <div class="issue">
+    <div class="title">Website Unreachable</div>
+    <div class="detail">Your website ({{ website }}) is down or returning errors. Every visitor from Google Maps or search hits a dead end. This is actively turning away customers who are ready to call.</div>
+  </div>
+</div>
+
+{% elif triage_status == "FREE_SUBDOMAIN" %}
+<div class="section">
+  <h2>Current Status</h2>
+  <div class="issue">
+    <div class="title">Free Subdomain Detected</div>
+    <div class="detail">Your site is hosted on {{ website }} &mdash; a free subdomain. This signals "hobby" rather than "professional business" and Google ranks free subdomains lower. A custom domain costs ~$12/year and dramatically improves credibility.</div>
+  </div>
+</div>
+
+{% else %}
+
+<div class="score-row">
+  <div class="score-card">
+    <div class="value {% if performance_score and performance_score >= 80 %}good{% elif performance_score and performance_score >= 50 %}warn{% else %}bad{% endif %}">{{ performance_score | default("&mdash;") }}</div>
+    <div class="label">Performance</div>
+  </div>
+  <div class="score-card">
+    <div class="value {% if seo_score and seo_score >= 80 %}good{% elif seo_score and seo_score >= 50 %}warn{% else %}bad{% endif %}">{{ seo_score | default("&mdash;") }}</div>
+    <div class="label">SEO</div>
+  </div>
+  <div class="score-card">
+    <div class="value {% if has_ssl %}good{% else %}bad{% endif %}">{{ "&#10003;" if has_ssl else "&#10007;" }}</div>
+    <div class="label">SSL Secure</div>
+  </div>
+  <div class="score-card">
+    <div class="value {% if is_mobile_friendly %}good{% else %}bad{% endif %}">{{ "&#10003;" if is_mobile_friendly else "&#10007;" }}</div>
+    <div class="label">Mobile-Friendly</div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Issues Found</h2>
+
+  {% if not has_ssl %}
+  <div class="issue">
+    <div class="title">No SSL Certificate</div>
+    <div class="detail">Browsers show a "Not Secure" warning. This erodes trust and can reduce conversions by up to 85%.</div>
+  </div>
+  {% else %}
+  <div class="issue pass">
+    <div class="title">SSL Certificate: Active &#10003;</div>
+  </div>
+  {% endif %}
+
+  {% if performance_score is not none and performance_score < 50 %}
+  <div class="issue">
+    <div class="title">Slow Page Speed ({{ performance_score }}/100)</div>
+    <div class="detail">Google recommends 90+. Each second of delay costs ~7% in conversions. 53% of mobile visitors leave after 3 seconds.</div>
+  </div>
+  {% elif performance_score is not none and performance_score >= 50 %}
+  <div class="issue pass">
+    <div class="title">Page Speed: {{ performance_score }}/100 &#10003;</div>
+  </div>
+  {% endif %}
+
+  {% if seo_score is not none and seo_score < 60 %}
+  <div class="issue">
+    <div class="title">Low SEO Score ({{ seo_score }}/100)</div>
+    <div class="detail">Missing SEO fundamentals (meta tags, headings, structured data) that help Google rank you above competitors.</div>
+  </div>
+  {% elif seo_score is not none and seo_score >= 60 %}
+  <div class="issue pass">
+    <div class="title">SEO Score: {{ seo_score }}/100 &#10003;</div>
+  </div>
+  {% endif %}
+
+  {% if not is_mobile_friendly %}
+  <div class="issue">
+    <div class="title">Not Mobile-Friendly</div>
+    <div class="detail">60%+ of local searches happen on phones. Your site doesn't render well on mobile, driving potential customers to competitors.</div>
+  </div>
+  {% endif %}
+
+  {% if is_outdated and copyright_year %}
+  <div class="issue">
+    <div class="title">Outdated Content (last updated {{ copyright_year }})</div>
+    <div class="detail">An outdated website signals "this business might be closed." Fresh content builds trust and improves SEO.</div>
+  </div>
+  {% endif %}
+
+  {% if technologies %}
+  <div class="issue {% if 'wix' in technologies or 'squarespace' in technologies or 'godaddy_builder' in technologies %}{% else %}pass{% endif %}">
+    <div class="title">Technology: {{ technologies | join(", ") | title }}</div>
+    {% if 'wix' in technologies or 'squarespace' in technologies or 'godaddy_builder' in technologies %}
+    <div class="detail">Page-builder platforms limit performance and SEO flexibility. A custom-built site loads faster and ranks better.</div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ========== WHAT YOU'RE MISSING — OPPORTUNITY SECTION ========== #}
+
+<div class="section">
+  <h2>What You're Missing</h2>
+  <div class="opp-grid">
+    <div class="opp-card">
+      <div class="opp-value">{{ est_monthly_searches | default("2,400") }}+</div>
+      <div class="opp-label">Monthly Searches</div>
+      <div class="opp-note">"{{ category | default('your service') | lower }} in {{ city | default('your area') }}"</div>
+    </div>
+    <div class="opp-card">
+      <div class="opp-value">{{ est_monthly_leads | default("15") }}&ndash;{{ est_monthly_leads_high | default("30") }}</div>
+      <div class="opp-label">Leads / Month</div>
+      <div class="opp-note">with a properly optimized website</div>
+    </div>
+    <div class="opp-card highlight">
+      <div class="opp-value">${{ est_monthly_revenue | default("7,500") }}+</div>
+      <div class="opp-label">Potential Revenue / Month</div>
+      <div class="opp-note">based on avg {{ category | default('service') | lower }} job value</div>
+    </div>
+  </div>
+</div>
+
+{# ========== BEFORE / AFTER ========== #}
+
+<div class="section">
+  <h2>Before &amp; After: What Changes</h2>
+  <div class="before-after">
+    <div class="ba-col before">
+      <h3>&#10007; Right Now</h3>
+      <ul>
+        {% if triage_status == "NO_WEBSITE" %}
+        <li>No website &mdash; invisible to Google searchers</li>
+        <li>Google Maps listing with no click-through destination</li>
+        <li>Competitors capturing 100% of web traffic</li>
+        {% elif triage_status == "DEAD_WEBSITE" %}
+        <li>Website is unreachable &mdash; dead end for visitors</li>
+        <li>Google penalizes broken sites in ranking</li>
+        <li>Every Maps click leads to an error page</li>
+        {% elif triage_status == "FREE_SUBDOMAIN" %}
+        <li>Free subdomain hurts credibility</li>
+        <li>Lower SEO authority vs custom domains</li>
+        <li>Looks unprofessional to potential clients</li>
+        {% else %}
+        {% if performance_score is not none and performance_score < 50 %}<li>Slow load speed ({{ performance_score }}/100) &mdash; losing mobile visitors</li>{% endif %}
+        {% if seo_score is not none and seo_score < 60 %}<li>Weak SEO ({{ seo_score }}/100) &mdash; competitors ranking above you</li>{% endif %}
+        {% if not has_ssl %}<li>"Not Secure" browser warning scaring off visitors</li>{% endif %}
+        {% if not is_mobile_friendly %}<li>Poor mobile experience &mdash; 60%+ of searches are on phones</li>{% endif %}
+        {% if is_outdated %}<li>Outdated content ({{ copyright_year }}) signals "possibly closed"</li>{% endif %}
+        <li>Potential customers leaving before they contact you</li>
+        {% endif %}
+        <li>Your {{ review_count | default(0) }} reviews and {{ rating | default("N/A") }}&#9733; rating not leveraged online</li>
+      </ul>
+    </div>
+    <div class="ba-col after">
+      <h3>&#10003; With a New Website</h3>
+      <ul>
+        <li>Custom site optimized for "{{ category | default('your service') | lower }} in {{ city | default('your area') }}"</li>
+        <li>Fast load speed (90+ performance score)</li>
+        <li>SEO-optimized to rank on page 1 of Google</li>
+        <li>Mobile-first design &mdash; looks perfect on every device</li>
+        <li>Click-to-call, contact forms, and clear service pages</li>
+        <li>Google reviews and ratings showcased on site</li>
+        <li>SSL secured &mdash; trusted by browsers and customers</li>
+        <li>Est. {{ est_monthly_leads | default("15") }}&ndash;{{ est_monthly_leads_high | default("30") }} new leads/month within 6&ndash;8 weeks</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+{# ========== WHAT YOU'LL GAIN ========== #}
+
+<div class="section">
+  <h2>What You'll Gain</h2>
+  <div class="gain-list">
+    <div class="gain-item">
+      <div class="gain-icon">&#128200;</div>
+      <div class="gain-text"><strong>{{ est_monthly_leads | default("15") }}&ndash;{{ est_monthly_leads_high | default("30") }} new leads per month</strong> &mdash; From Google searches, Maps clicks, and organic traffic. Based on {{ est_monthly_searches | default("2,400") }}+ monthly searches for "{{ category | default('your service') | lower }}" in {{ city | default('your area') }} and a {{ est_conversion_rate | default("3&ndash;5") }}% website conversion rate.</div>
+    </div>
+    <div class="gain-item">
+      <div class="gain-icon">&#128176;</div>
+      <div class="gain-text"><strong>${{ est_monthly_revenue | default("7,500") }}+ in additional monthly revenue</strong> &mdash; {{ est_revenue_math | default("Conservative estimate based on average job value in your industry.") }}</div>
+    </div>
+    <div class="gain-item">
+      <div class="gain-icon">&#127919;</div>
+      <div class="gain-text"><strong>Page 1 Google ranking for local searches</strong> &mdash; SEO delivers 19.9x return on investment vs 4.4x for paid ads. Unlike ads, organic rankings compound over time and don't stop when you stop spending.</div>
+    </div>
+    <div class="gain-item">
+      <div class="gain-icon">&#128241;</div>
+      <div class="gain-text"><strong>88% of local mobile searchers call or visit within 24 hours</strong> &mdash; A mobile-optimized site captures high-intent customers who are ready to buy right now. Your competitors are getting these calls today.</div>
+    </div>
+    <div class="gain-item">
+      <div class="gain-icon">&#128170;</div>
+      <div class="gain-text"><strong>Competitive edge in {{ city | default('your market') }}</strong> &mdash; {{ est_competitor_note | default("Your reviews and rating are strong. A professional website is the missing piece to convert online searchers into paying customers.") }}</div>
+    </div>
+    <div class="gain-item">
+      <div class="gain-icon">&#9201;</div>
+      <div class="gain-text"><strong>ROI within {{ est_roi_timeline | default("2&ndash;3 months") }}</strong> &mdash; {{ est_roi_math | default("At your industry's average job value, just a few extra customers per month pays for the entire project.") }}</div>
+    </div>
+  </div>
+</div>
+
+{# ========== CTA ========== #}
+
+<div class="cta">
+  <h3>Let's Build Something That Works for {{ business_name }}</h3>
+  <p>I'll walk you through these numbers and show you exactly what your new site would look like.<br>
+  No commitment &mdash; just a 15-minute conversation.</p>
+  <a class="cta-link" href="https://calendly.com/shunya-nwsmedia/30min">Book a Free Call &rarr;</a>
+</div>
+
+<div class="footer">
+  Prepared by {{ sender_name }} &middot; {{ sender_company }} &middot; {{ sender_phone }}
+</div>
+
+</body>
+</html>

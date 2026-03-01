@@ -1,0 +1,18 @@
+Subject: ideas for {{ company_name }}
+
+Hi {{ first_name }},
+
+I came across {{ company_name }} — {{ review_count }} reviews, {{ rating }} stars. Clearly doing something right.
+
+I searched "{{ category }} in {{ city }}" and your Maps listing came up — but there's no website to click through to. Every one of those searchers is a potential customer who can't learn more about you, check your work, or contact you. They just move on to the next result.
+
+The fix is straightforward and I actually mapped out what I'd build if {{ company_name }} were my client. Three things:
+
+→ A clean one-page site optimized for "{{ category }} {{ city }}" searches
+→ Click-to-call and a contact form above the fold
+→ Your best reviews pulled in automatically from Google
+
+Would it be useful if I sent over a one-page breakdown with the specific fixes? No cost, no catch — I genuinely think {{ company_name }} is leaving money on the table.
+
+All the best,
+NWS MEDIA

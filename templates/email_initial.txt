@@ -1,0 +1,69 @@
+Subject: ideas for {{ company_name }}
+
+Hi {{ first_name | default("there") }},
+
+I came across {{ company_name }}{% if review_count and rating %} — {{ review_count }} reviews, {{ rating }} stars{% endif %}. {{ "Clearly doing something right." if review_count and rating else "" }}
+
+{% if segment == "NEW_SMALL" and triage_status == "NO_WEBSITE" -%}
+I searched "{{ category | default('your service') }} in {{ city | default('your area') }}" and your Maps listing came up — but there's no website to click through to. Every one of those searchers is a potential customer who can't learn more about you, check your work, or contact you. They just move on to the next result.
+
+The fix is straightforward and I actually mapped out what I'd build if {{ company_name }} were my client. Three things:
+
+→ A clean one-page site optimized for "{{ category | default('your service') }} {{ city | default('near me') }}" searches
+→ Click-to-call and a contact form above the fold
+→ Your best reviews pulled in automatically from Google
+
+{% elif segment == "NEW_SMALL" -%}
+I took a look at your site and — being honest — it doesn't match the quality of what you're actually doing. Right now someone Googling "{{ category | default('your service') }} {{ city | default('near me') }}" is more likely to click a competitor, even if their work isn't as good. Google doesn't care who's better — it cares who has a faster, cleaner website.
+
+I pulled together a few quick observations:
+
+→ Your site's structure makes it hard for Google to rank you for local searches
+→ On mobile, the experience needs work (that's where 60%+ of your customers are searching from)
+→ A few competitor sites in {{ city | default('your area') }} are outranking you with worse reviews
+
+{% elif triage_status == "NO_WEBSITE" -%}
+I Googled "{{ category | default('your service') }} in {{ city | default('your area') }}" — {{ company_name }} shows up on Maps, but there's no website. That means every potential customer who wants to learn more about you before calling just... can't.
+
+I sketched out what I'd build if this were my business:
+
+→ A fast, mobile-first site targeting "{{ category | default('your service') }} {{ city | default('near me') }}"
+→ Your {{ review_count | default('') }} Google reviews displayed prominently to build instant trust
+→ Simple contact form + click-to-call so leads convert on the spot
+
+{% elif triage_status == "DEAD_WEBSITE" -%}
+I just tried pulling up {{ company_name }}'s website — {{ website }} isn't loading. Every customer who finds you on Google Maps and clicks through is hitting a dead page right now.
+
+I ran a quick diagnostic and found:
+
+→ The site is returning errors (likely a hosting or DNS issue)
+→ While it's down, Google is actively demoting your listing in search results
+→ Your competitors in {{ city | default('the area') }} are picking up the traffic you're losing
+
+{% elif triage_status == "FREE_SUBDOMAIN" -%}
+I noticed {{ company_name }}'s website is on {{ website }} — a free subdomain. Here's why that matters more than most people realize:
+
+→ Google ranks custom domains significantly higher than free subdomains
+→ Customers associate free sites with new or unestablished businesses (not a {{ rating | default('') }}-star operation with {{ review_count | default('') }} reviews)
+→ You're limited on speed, SEO, and design customization
+
+{% else -%}
+I ran {{ company_name }}'s website through Google's PageSpeed analysis and a few things stood out:
+
+{% if not has_ssl -%}
+→ No SSL certificate — Chrome literally shows "Not Secure" next to your URL. 84% of people won't fill out a form on a site with that warning.
+{% endif -%}
+{% if performance_score is not none and performance_score < 50 -%}
+→ Speed score: {{ performance_score }}/100 — anything under 50 means Google is actively penalizing you in rankings, and over half your mobile visitors leave before the page loads.
+{% endif -%}
+{% if seo_score is not none and seo_score < 60 -%}
+→ SEO score: {{ seo_score }}/100 — this is why competitors with fewer reviews are showing up above you in search.
+{% endif -%}
+{% if is_outdated and copyright_year -%}
+→ Copyright still says {{ copyright_year }} — to a new customer, that reads as "this business might not be around anymore."
+{% endif -%}
+
+{% endif -%}
+Would it be useful if I sent over a one-page breakdown with the specific fixes? No cost, no catch — I genuinely think {{ company_name }} is leaving money on the table.
+
+{{ sender_name }}

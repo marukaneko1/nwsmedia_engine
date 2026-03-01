@@ -1,0 +1,16 @@
+Subject: ideas for {{ company_name }}
+
+Hi {{ first_name }},
+
+I came across {{ company_name }} — {{ review_count }} reviews, {{ rating }} stars. Clearly doing something right.
+
+I looked at your online presence and pulled together a few observations:
+
+→ When someone searches "{{ category }} in {{ city }}" your competitors are showing up with faster, cleaner sites — and Google rewards that with higher rankings.
+→ On mobile (where 60%+ of local searches happen) the experience could be a lot stronger.
+→ The issues I found: {{ issues_found }}.
+
+Would it be useful if I sent over a one-page breakdown with the specific fixes? No cost, no catch — I genuinely think {{ company_name }} is leaving money on the table.
+
+All the best,
+NWS MEDIA

@@ -1,0 +1,54 @@
+Section,Category,Item,Description,Price_Min,Price_Max,Price_Note,Notes
+Industry Pricing,Tier,DIY / Template,Wix Squarespace Fiverr,0,2000,one-time,Low budget low urgency
+Industry Pricing,Tier,Freelancer,Solo designer dev 5-10 pages,3000,8000,one-time,Price-sensitive simple needs
+Industry Pricing,Tier,Boutique agency,1-5 person shop,5000,15000,one-time,Your main competitor set
+Industry Pricing,Tier,Full-service agency,10+ people,15000,50000,one-time,Larger or enterprise
+Industry Pricing,By Vertical,Contractors HVAC plumbing,Strong local sites,3000,12000,one-time,"$6k-$8k common for strong local"
+Industry Pricing,By Vertical,Dentists,Solid dental sites,6000,25000,one-time,"ADA cites ~$10k-$12k"
+Industry Pricing,By Vertical,Med spas healthcare,Sweet spot,2500,10000,one-time,"$2.5k-$5k typical sweet spot"
+Your Pricing,Core,Floor (minimum),Simple 5-page brochure SEO mobile-friendly,3500,4000,one-time,Keeps you out of race-to-the-bottom
+Your Pricing,Core,Target (main offer),8-12 pages local SEO built in,5500,8000,one-time,Audit data as proof and positioning
+Your Pricing,Core,High end,Booking forms multiple locations integrations,9000,12000,one-time,More hand-holding
+Your Pricing,Ongoing,Maintenance,Hosting updates backups small edits,50,150,per month,Optional local SEO light-touch
+Page Count,Pages,5 pages,Basic brochure (Home Services About Contact CTA),3500,4500,one-time,Floor package
+Page Count,Pages,6-8 pages,Add Team Testimonials FAQ or 1-2 service pages,4500,6000,one-time,
+Page Count,Pages,9-12 pages,Full service lineup locations blog stub,5500,8000,one-time,Target package
+Page Count,Pages,13-18 pages,Extended services multiple locations case studies,7500,10000,one-time,
+Page Count,Pages,19-25 pages,Large site many services locations resources,9500,14000,one-time,
+Page Count,Pages,25+ pages,Enterprise-style many sections sub-pages,12000,20000,one-time,Quote per scope
+Add-ons & Extras,Design,Animations - micro,Button hover link hover subtle transitions,300,600,one-time,Per page or flat
+Add-ons & Extras,Design,Animations - scroll,Scroll-triggered reveals fade-in on scroll,500,1200,one-time,Section-based pricing
+Add-ons & Extras,Design,Animations - full page,Parallax scroll-triggered sections multiple motion,800,2000,one-time,Keep lightweight for speed
+Add-ons & Extras,Design,Apple effect,Premium minimal high whitespace subtle motion typography-first,1000,2500,one-time,"Position as premium tier; fewer elements higher perceived value"
+Add-ons & Extras,Design,Intro animation,Hero load-in logo reveal first-screen animation,400,900,one-time,"Skip on mobile or reduce for Core Web Vitals"
+Add-ons & Extras,Design,Video background,Hero or section background video (muted loop),500,1500,one-time,"Must be optimized; can hurt speed"
+Add-ons & Extras,Design,Custom illustrations,Icons illustrations mascot,600,2000,one-time,Per asset or package
+Add-ons & Extras,Design,Premium photography,Stock upgrade or custom shoot,400,1500,one-time,Per shoot or per image
+Add-ons & Extras,Functionality,Booking integration,Calendly Acuity or custom booking,400,1200,one-time,Dentists med spas
+Add-ons & Extras,Functionality,Contact forms - advanced,Multi-step conditional fields file upload,200,600,one-time,
+Add-ons & Extras,Functionality,Multi-location,Location pages schema per location,800,2000,one-time,Per location after first
+Add-ons & Extras,Functionality,Blog setup,5-10 posts CMS ready,500,1000,one-time,SEO content extra
+Add-ons & Extras,Functionality,Testimonials widget,Auto-pull Google reviews display,300,600,one-time,API or manual
+Add-ons & Extras,Functionality,Online payment,Stripe or similar for deposits,600,1500,one-time,
+Moat,Advantage,Audit-first selling,Pre-audit PageSpeed SEO SSL before call,,,,"Show specific issues; 78% complaints are service not tech"
+Moat,Advantage,Vertical specialization,Contractors dentists med spas Houston Dallas Austin etc,,,,"2x growth 61%+ gross vs generalists"
+Moat,Advantage,Lead engine,Pre-qualified pipeline only talk to repliers,,,,"Triage audit enrichment data before call"
+Moat,Advantage,Built to rank,Local SEO from day one,,,,"19.9x ROAS SEO vs 4.4x ads; $126 vs $553 cost per customer"
+Moat,Advantage,Performance focus,PageSpeed Core Web Vitals,,,,"1s delay = ~7% conversion loss; 53% abandon after 3s"
+Moat,Advantage,Boutique positioning,Direct contact no disappear vs freelancer; no overhead vs big agency,,,,
+Moat,Advantage,Thumbtack alternative,Site = no per-lead fee; $6k site at $100/lead = 60 leads to break even,,,,
+Moat,Advantage,ROI by vertical,Contractors $2k job x 3 leads = $6k/mo; Dentists $5k LTV; Med spa $500-$2k procedure,,,,
+Moat,Advantage,Niche market focus,Large metros name competitors in city,,,,
+Moat,Advantage,Segment-aware,ESTABLISHED vs NEW_SMALL messaging,,,,
+Summary,Why choose you,Proof before pitch,Show audit data speed SEO SSL before they commit,,,,
+Summary,Why choose you,Vertical expert,Contractors dentists med spas in specific metros,,,,
+Summary,Why choose you,Built to rank,Local SEO and speed built in day one,,,,
+Summary,Why choose you,No per-lead tax,One investment vs Thumbtack/HomeAdvisor,,,,
+Summary,Why choose you,ROI story,Tie site to leads and lifetime value not just pretty,,,,
+Summary,Why choose you,Boutique reliability,Direct contact no disappearing no big-agency overhead,,,,
+Summary,Why choose you,Segment-aware,Messaging fits ESTABLISHED vs NEW_SMALL,,,,
+One-line pitch,Pitch 1,,We build websites that rank. I've already audited yours — I can show you exactly where you're losing customers.,,,,
+One-line pitch,Pitch 2,,Contractors in Houston are paying $50-200 per Thumbtack lead. A site that ranks brings leads without per-lead fees.,,,,
+One-line pitch,Pitch 3,,We only work with [contractors / dentists / med spas] in markets like yours. I know what works.,,,,
+One-line pitch,Pitch 4,,Your reviews are solid — the site isn't. I'll show you the data then we build something that matches your reputation.,,,,
+Sources,Reference,,Clutch ADA Fourth Coast Web WebFX CI Web Group Orbit Media Forbes Agency Council (2025),,,,

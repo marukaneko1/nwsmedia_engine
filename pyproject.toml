@@ -1,0 +1,44 @@
+[project]
+name = "nwsmedia-lead-engine"
+version = "0.1.0"
+description = "Automated dual-channel lead generation engine for NWS Media"
+requires-python = ">=3.12"
+dependencies = [
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "playwright>=1.49",
+    "playwright-stealth>=1.0.6",
+    "aiohttp>=3.11",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "click>=8.1",
+    "rich>=13.9",
+    "python-dotenv>=1.0",
+    "celery[redis]>=5.4",
+    "redis>=5.2",
+    "jinja2>=3.1",
+    "structlog>=24.4",
+    "weasyprint>=62.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+]
+
+[project.scripts]
+nwsmedia = "src.cli:cli"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

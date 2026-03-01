@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Website Audit Report — Example</title>
+<style>
+  @page { size: A4; margin: 1.5cm 2cm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a2e; font-size: 11pt; line-height: 1.5; max-width: 210mm; margin: 0 auto; padding: 20px; }
+  .header { background: #0f3460; color: #fff; padding: 24px 28px; border-radius: 8px; margin-bottom: 20px; }
+  .header h1 { font-size: 20pt; margin-bottom: 4px; }
+  .header p { font-size: 10pt; opacity: 0.85; }
+  .meta { display: flex; justify-content: space-between; margin-bottom: 18px; font-size: 9pt; color: #555; }
+  .section { margin-bottom: 16px; }
+  .section h2 { font-size: 13pt; color: #0f3460; border-bottom: 2px solid #e94560; padding-bottom: 4px; margin-bottom: 10px; }
+  .score-row { display: flex; gap: 16px; margin-bottom: 16px; }
+  .score-card { flex: 1; background: #f8f9fa; border-radius: 8px; padding: 14px; text-align: center; }
+  .score-card .value { font-size: 28pt; font-weight: 700; }
+  .score-card .label { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5px; color: #666; margin-top: 4px; }
+  .good { color: #27ae60; }
+  .warn { color: #f39c12; }
+  .bad { color: #e74c3c; }
+  .issue { padding: 10px 14px; margin-bottom: 8px; border-left: 4px solid #e94560; background: #fff5f5; border-radius: 0 6px 6px 0; }
+  .issue.pass { border-left-color: #27ae60; background: #f0fff4; }
+  .issue .title { font-weight: 600; font-size: 10pt; }
+  .issue .detail { font-size: 9pt; color: #555; margin-top: 2px; }
+  .cta { background: #e94560; color: #fff; padding: 18px 24px; border-radius: 8px; text-align: center; margin-top: 20px; }
+  .cta h3 { font-size: 14pt; margin-bottom: 6px; }
+  .cta p { font-size: 10pt; opacity: 0.9; }
+  .footer { margin-top: 20px; text-align: center; font-size: 8pt; color: #999; }
+  .badge { display: inline-block; background: #e94560; color: #fff; font-size: 8pt; padding: 2px 8px; border-radius: 4px; margin-left: 8px; }
+</style>
+</head>
+<body>
+
+<p class="badge">EXAMPLE — open in browser or print to PDF</p>
+
+<div class="header">
+  <h1>Website Audit Report</h1>
+  <p>Smith & Sons Plumbing — https://smithsonsplumbing.example.com</p>
+</div>
+
+<div class="meta">
+  <span><strong>Category:</strong> Plumber</span>
+  <span><strong>Rating:</strong> 4.6 ★ (127 reviews)</span>
+  <span><strong>Generated:</strong> February 26, 2026</span>
+</div>
+
+<div class="score-row">
+  <div class="score-card">
+    <div class="value bad">38</div>
+    <div class="label">Performance</div>
+  </div>
+  <div class="score-card">
+    <div class="value bad">52</div>
+    <div class="label">SEO</div>
+  </div>
+  <div class="score-card">
+    <div class="value good">✓</div>
+    <div class="label">SSL Secure</div>
+  </div>
+  <div class="score-card">
+    <div class="value bad">✗</div>
+    <div class="label">Mobile-Friendly</div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Issues Found</h2>
+
+  <div class="issue pass">
+    <div class="title">SSL Certificate: Active ✓</div>
+  </div>
+
+  <div class="issue">
+    <div class="title">Slow Page Speed (38/100)</div>
+    <div class="detail">Google recommends a score above 90. Slow websites lose 53% of mobile visitors who won't wait more than 3 seconds.</div>
+  </div>
+
+  <div class="issue">
+    <div class="title">Low SEO Score (52/100)</div>
+    <div class="detail">Your site is missing SEO fundamentals that help Google rank you above competitors. Meta tags, headings, and structured data need attention.</div>
+  </div>
+
+  <div class="issue">
+    <div class="title">Not Mobile-Friendly</div>
+    <div class="detail">Over 60% of local searches happen on phones. Your site doesn't render well on mobile devices, driving potential customers away.</div>
+  </div>
+
+  <div class="issue">
+    <div class="title">Outdated Content (last updated 2021)</div>
+    <div class="detail">An outdated website signals "this business might be closed." Fresh content builds trust and helps SEO.</div>
+  </div>
+
+  <div class="issue">
+    <div class="title">Technology: Wix</div>
+    <div class="detail">Page-builder platforms limit performance and SEO flexibility. A custom-built site would give you more control and better results.</div>
+  </div>
+</div>
+
+<div class="cta">
+  <h3>Ready to Fix This?</h3>
+  <p>I can walk you through these issues and show you exactly what a better website would look like for Smith & Sons Plumbing.<br>
+  Reply to this email or call +1 (646) 906-0662 to schedule a free 15-minute consultation.</p>
+</div>
+
+<div class="footer">
+  Prepared by Maru Kaneko · NWS Media · +1 (646) 906-0662
+</div>
+
+</body>
+</html>

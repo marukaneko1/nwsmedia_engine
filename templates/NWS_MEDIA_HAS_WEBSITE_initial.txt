@@ -1,0 +1,16 @@
+Subject: ideas for {{ company_name }}
+
+Hi {{ first_name }},
+
+I came across {{ company_name }} — {{ review_count }} reviews, {{ rating }} stars. Clearly doing something right.
+
+I ran {{ company_name }}'s website through Google's PageSpeed analysis and had a look at how it’s presenting the business. A few things stood out:
+
+→ {{ issues_found }}
+→ The site doesn’t do justice to the reputation you’ve built — the look and feel can make a strong brand feel generic or outdated, and that’s costing you trust (and revenue) from people who land on the site before calling.
+→ Slow load times and a weak first impression mean you’re likely losing leads to competitors whose sites feel faster and more professional.
+
+Would it be useful if I sent over a one-page breakdown with the specific fixes? No cost, no catch — I genuinely think {{ company_name }} is leaving money on the table and that a better-performing, better-looking site would reflect the quality of work you’re already doing.
+
+All the best,
+NWS MEDIA

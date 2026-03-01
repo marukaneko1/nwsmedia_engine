@@ -1,0 +1,20 @@
+Subject: quick question about {{ company_name }}
+
+{{ first_name | default("Hi") }},
+
+Genuine question — where do most of {{ company_name }}'s new customers come from right now? Referrals? Google? Word of mouth?
+
+{% if segment == "NEW_SMALL" -%}
+I ask because I recently worked with a {{ category | default('business') }} that was in a similar spot — great work, growing reputation, but almost invisible online. Within 8 weeks of launching a new site, they went from not showing up on Google at all to appearing in the top 3 for their main keywords. Calls went up, they stopped relying purely on referrals, and they had a pipeline for the first time.
+
+The whole project took about 3 weeks to build. Nothing complicated — just a fast site built to rank for the exact terms their customers were searching.
+{% else -%}
+I ask because I worked with a {{ category | default('business') }} that had a similar profile — strong reviews, solid reputation, but a website that was actually hurting them in Google rankings. After we rebuilt it (took about 3 weeks), they went from page 2 to the top 3 results. Monthly calls doubled. No ad spend, just a site that was built to perform.
+
+The issues we fixed were the same ones I flagged for {{ company_name }} — speed, mobile experience, and SEO structure.
+{% endif %}
+Not trying to sell you anything with this email. Just thought it was relevant since the situations are so similar.
+
+If you're curious what that'd look like for {{ company_name }}, happy to share.
+
+{{ sender_name }}

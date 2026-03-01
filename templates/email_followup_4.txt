@@ -1,0 +1,18 @@
+Subject: closing {{ company_name }}'s file
+
+{{ first_name | default("Hey") }},
+
+Last email from me.
+
+{% if triage_status == "NO_WEBSITE" -%}
+Every day without a website, {{ company_name }} is invisible to the people actively searching for "{{ category | default('your service') }} in {{ city | default('your area') }}." Those searches are happening whether you have a site or not — the question is whether they find you or your competitor.
+{% elif triage_status in ("DEAD_WEBSITE", "FREE_SUBDOMAIN") -%}
+I still think {{ company_name }} is sitting on a lot of untapped potential online. The website situation is fixable and the upside is real — more calls, more visibility, less reliance on word of mouth alone.
+{% else -%}
+The issues I flagged on {{ company_name }}'s site aren't going away on their own — and every month they sit there, they're quietly pushing you down in Google while competitors climb.
+{% endif %}
+If you ever want to revisit this, just reply to this thread. I'll still have your audit saved and can pick it up right where we left off.
+
+All the best,
+{{ sender_name }}
+{{ sender_company }}

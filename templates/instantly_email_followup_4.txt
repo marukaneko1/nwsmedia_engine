@@ -1,0 +1,12 @@
+Subject: closing {{ company_name }}'s file
+
+{{ first_name }},
+
+Last email from me.
+
+I still think {{ company_name }} is sitting on a lot of untapped potential online. The website situation is fixable and the upside is real — more calls, more visibility, less reliance on word of mouth alone.
+
+If you ever want to revisit this, just reply to this thread. I'll still have your audit saved and can pick it up right where we left off.
+
+All the best,
+NWS Media
