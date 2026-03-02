@@ -1,6 +1,10 @@
+"use client";
+
 import Link from "next/link";
-import { FileText, Star } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, FileText, Star } from "lucide-react";
 import { cn, tierColor, segmentColor, formatDate, absoluteWebsiteUrl } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -109,6 +113,7 @@ function AuditPdfButton({ businessId }: { businessId: number }) {
 }
 
 export function LeadDetailView({ data }: LeadDetailViewProps) {
+  const router = useRouter();
   const { lead, outreach, lifecycle, favorited } = data;
   if (!lead) return null;
 
@@ -123,6 +128,16 @@ export function LeadDetailView({ data }: LeadDetailViewProps) {
     lead.content_freshness != null;
 
   return (
+    <div className="space-y-6">
+      <Button
+        variant="ghost"
+        onClick={() => router.back()}
+        className="gap-1.5 text-muted-foreground hover:text-foreground -ml-2"
+      >
+        <ArrowLeft className="size-4" />
+        Back to Leads
+      </Button>
+
     <div className="grid gap-6 lg:grid-cols-3">
       {/* Left 2/3 */}
       <div className="space-y-6 lg:col-span-2">
@@ -365,6 +380,7 @@ export function LeadDetailView({ data }: LeadDetailViewProps) {
           </CardContent>
         </Card>
       </div>
+    </div>
     </div>
   );
 }

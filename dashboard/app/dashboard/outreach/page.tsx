@@ -19,35 +19,57 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function OutreachPage() {
-  const [{ data: outreach }, favoriteIds] = await Promise.all([
-    supabase
-      .from("outreach_log")
-      .select("*")
-      .order("sent_at", { ascending: false })
-      .limit(300),
-    getFavoriteIds(),
-  ]);
+  let outreach: Array<{
+    id: number;
+    business_id: number;
+    status?: string | null;
+    segment?: string | null;
+    email_address?: string | null;
+    email_sent_to?: string | null;
+    sent_at?: string | null;
+    opened_at?: string | null;
+    replied_at?: string | null;
+  }> = [];
+  let favoriteIds: number[] = [];
+  let bizMap: Record<number, { id: number; name: string; category: string | null; city: string | null }> = {};
+  let pipelineMap: Record<number, string> = {};
+  let dataError: string | null = null;
+
+  try {
+    const [outreachRes, favIds] = await Promise.all([
+      supabase
+        .from("outreach_log")
+        .select("*")
+        .order("sent_at", { ascending: false })
+        .limit(300),
+      getFavoriteIds(),
+    ]);
+    outreach = (outreachRes.data ?? []) as typeof outreach;
+    favoriteIds = favIds;
+
+    const bizIds = [...new Set((outreach ?? []).map((o) => o.business_id))];
+
+    const [{ data: businesses }, { data: lifecycles }] = bizIds.length > 0
+      ? await Promise.all([
+          supabase.from("businesses").select("id, name, category, city").in("id", bizIds),
+          supabase
+            .from("lead_lifecycle")
+            .select("business_id, status, changed_at")
+            .in("business_id", bizIds)
+            .order("changed_at", { ascending: false }),
+        ])
+      : [{ data: [] }, { data: [] }];
+
+    bizMap = Object.fromEntries((businesses ?? []).map((b) => [b.id, b]));
+
+    for (const lc of lifecycles ?? []) {
+      if (!pipelineMap[lc.business_id]) pipelineMap[lc.business_id] = lc.status;
+    }
+  } catch (err) {
+    dataError = err instanceof Error ? err.message : "Failed to load outreach data";
+  }
 
   const favSet = new Set(favoriteIds);
-  const bizIds = [...new Set((outreach ?? []).map((o) => o.business_id))];
-
-  const [{ data: businesses }, { data: lifecycles }] = bizIds.length > 0
-    ? await Promise.all([
-        supabase.from("businesses").select("id, name, category, city").in("id", bizIds),
-        supabase
-          .from("lead_lifecycle")
-          .select("business_id, status, changed_at")
-          .in("business_id", bizIds)
-          .order("changed_at", { ascending: false }),
-      ])
-    : [{ data: [] }, { data: [] }];
-
-  const bizMap = Object.fromEntries((businesses ?? []).map((b) => [b.id, b]));
-
-  const pipelineMap: Record<number, string> = {};
-  for (const lc of lifecycles ?? []) {
-    if (!pipelineMap[lc.business_id]) pipelineMap[lc.business_id] = lc.status;
-  }
 
   const total = (outreach ?? []).length;
   const byStatus: Record<string, number> = {};
@@ -82,6 +104,11 @@ export default async function OutreachPage() {
   return (
     <>
       <Header title="Outreach Sent" />
+      {dataError && (
+        <div className="mx-6 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+          {dataError}
+        </div>
+      )}
       <main className="p-6 max-w-[1400px] space-y-6">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Card>

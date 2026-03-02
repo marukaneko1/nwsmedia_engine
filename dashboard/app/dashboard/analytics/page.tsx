@@ -8,21 +8,51 @@ import { AnalyticsCharts } from "@/components/dashboard/analytics-charts";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const emptyKpis = {
+  totalLeads: 0,
+  emailsFound: 0,
+  avgScore: 0,
+  outreachSent: 0,
+  leadsToday: 0,
+  emailsDelta: 0,
+  scoreDelta: 0,
+  outreachDelta: 0,
+};
+const emptyDist: { label: string; count: number }[] = [];
+
 export default async function AnalyticsPage() {
-  const [kpis, dailyLeads, cities, tierDist, segmentDist, triageDist, cityDist] =
-    await Promise.all([
-      getKpis(),
-      getDailyLeads(60),
-      getCities(),
-      getTierDistribution(),
-      getSegmentDistribution(),
-      getTriageDistribution(),
-      getCityDistribution(),
-    ]);
+  let kpis = emptyKpis;
+  let dailyLeads: Awaited<ReturnType<typeof getDailyLeads>> = [];
+  let cities: string[] = [];
+  let tierDist = emptyDist;
+  let segmentDist = emptyDist;
+  let triageDist = emptyDist;
+  let cityDist = emptyDist;
+  let dataError: string | null = null;
+
+  try {
+    [kpis, dailyLeads, cities, tierDist, segmentDist, triageDist, cityDist] =
+      await Promise.all([
+        getKpis(),
+        getDailyLeads(60),
+        getCities(),
+        getTierDistribution(),
+        getSegmentDistribution(),
+        getTriageDistribution(),
+        getCityDistribution(),
+      ]);
+  } catch (err) {
+    dataError = err instanceof Error ? err.message : "Failed to load analytics";
+  }
 
   return (
     <>
       <Header title="Analytics" />
+      {dataError && (
+        <div className="mx-6 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+          {dataError}
+        </div>
+      )}
       <main className="p-6 max-w-[1400px] space-y-6">
         {/* Summary row */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

@@ -5,6 +5,7 @@ import path from "path";
 import { revalidatePath } from "next/cache";
 import nodemailer from "nodemailer";
 import { supabase } from "./db";
+import { getAccountCredentials } from "./email-accounts";
 
 export async function sendOutreachEmail(params: {
   businessId: number;
@@ -12,11 +13,11 @@ export async function sendOutreachEmail(params: {
   subject: string;
   body: string;
   followUpCount: number;
+  senderEmail?: string;
 }): Promise<{ ok: boolean; error?: string }> {
-  const gmailUser = process.env.GMAIL_USER;
-  const gmailPass = process.env.GMAIL_APP_PASSWORD;
+  const creds = getAccountCredentials(params.senderEmail);
 
-  if (!gmailUser || !gmailPass) {
+  if (!creds) {
     return {
       ok: false,
       error:
@@ -26,12 +27,13 @@ export async function sendOutreachEmail(params: {
 
   const transporter = nodemailer.createTransport({
     service: "gmail",
-    auth: { user: gmailUser, pass: gmailPass },
+    auth: { user: creds.user, pass: creds.pass },
   });
 
   const attachments: nodemailer.SendMailOptions["attachments"] = [];
 
-  if (params.followUpCount === 0) {
+  // Only attach audit PDF on follow-ups, not on the first initial email (avoids raising red flags)
+  if (params.followUpCount > 0) {
     try {
       const { ensureAuditPdf } = await import("./generate-audit-pdf");
       const pdfPath = await ensureAuditPdf(params.businessId);
@@ -50,7 +52,7 @@ export async function sendOutreachEmail(params: {
 
   try {
     await transporter.sendMail({
-      from: `NWS MEDIA <${gmailUser}>`,
+      from: `${creds.displayName} <${creds.user}>`,
       to: params.to,
       subject: params.subject,
       text: params.body,

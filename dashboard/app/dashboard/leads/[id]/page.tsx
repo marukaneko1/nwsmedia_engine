@@ -17,7 +17,12 @@ export default async function LeadDetailPage({
   const numericId = parseInt(id, 10);
   if (Number.isNaN(numericId)) notFound();
 
-  const data = await getLeadById(numericId);
+  let data;
+  try {
+    data = await getLeadById(numericId);
+  } catch {
+    notFound();
+  }
   if (!data || !data.lead) notFound();
 
   return (

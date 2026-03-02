@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Circle, Lock, Mail, Send, ChevronDown, ChevronUp, Pencil } from "lucide-react";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { sendOutreachEmail } from "@/lib/actions";
+import { getSenderAccounts, type SenderAccount } from "@/lib/email-accounts";
 import {
   getTemplateForStep,
   fillTemplate,
@@ -78,6 +79,15 @@ export function EmailOutreachPanel({ lead, outreach }: EmailOutreachPanelProps) 
   const [editBody, setEditBody] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendSuccess, setSendSuccess] = useState<string | null>(null);
+  const [senderAccounts, setSenderAccounts] = useState<SenderAccount[]>([]);
+  const [selectedSender, setSelectedSender] = useState("");
+
+  useEffect(() => {
+    getSenderAccounts().then((accounts) => {
+      setSenderAccounts(accounts);
+      if (accounts.length > 0) setSelectedSender(accounts[0].email);
+    });
+  }, []);
 
   const recipientEmail = lead.best_email || lead.email;
 
@@ -158,6 +168,7 @@ export function EmailOutreachPanel({ lead, outreach }: EmailOutreachPanelProps) 
         subject,
         body,
         followUpCount: stepIndex,
+        senderEmail: selectedSender || undefined,
       });
 
       if (result.ok) {
@@ -209,6 +220,23 @@ export function EmailOutreachPanel({ lead, outreach }: EmailOutreachPanelProps) 
           <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
             <span className="text-muted-foreground">To: </span>
             <span className="font-medium">{recipientEmail}</span>
+          </div>
+        )}
+
+        {senderAccounts.length > 1 && (
+          <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm flex items-center gap-2">
+            <span className="text-muted-foreground shrink-0">From:</span>
+            <select
+              value={selectedSender}
+              onChange={(e) => setSelectedSender(e.target.value)}
+              className="flex-1 bg-transparent text-sm font-medium focus:outline-none cursor-pointer"
+            >
+              {senderAccounts.map((a) => (
+                <option key={a.email} value={a.email}>
+                  {a.displayName} &lt;{a.email}&gt;
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
