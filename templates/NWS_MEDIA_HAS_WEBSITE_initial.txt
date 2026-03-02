@@ -1,6 +1,8 @@
 Subject: ideas for {{ company_name }}
 
-Hi {{ first_name }},
+Hi there,
+
+I don't mean to come across "salesy", this is just a passion of mine.
 
 I came across {{ company_name }} — {{ review_count }} reviews, {{ rating }} stars. Clearly doing something right.
 

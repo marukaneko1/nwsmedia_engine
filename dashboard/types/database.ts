@@ -105,6 +105,7 @@ export interface LeadWithDetails {
   owner_name: string | null;
   enrichment_source: string | null;
   pipeline_status: string | null;
+  favorited?: boolean;
 }
 
 export interface DailyLeadCount {

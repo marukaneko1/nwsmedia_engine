@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { FavoriteButton } from "./favorite-button";
 
 const TIERS = ["HOT", "WARM", "COOL", "COLD"] as const;
 const SEGMENTS = ["ESTABLISHED", "NEW_SMALL"] as const;
@@ -47,6 +48,7 @@ export function LeadsTableClient({
   const [cityFilter, setCityFilter] = useState<string>("all");
   const [tierFilter, setTierFilter] = useState<string>("all");
   const [segmentFilter, setSegmentFilter] = useState<string>("all");
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [sortColumn, setSortColumn] = useState<SortKey | null>(null);
 
   const handleSort = (key: SortKey) => {
@@ -56,6 +58,9 @@ export function LeadsTableClient({
   const filtered = useMemo(() => {
     let result = [...initialLeads];
 
+    if (favoritesOnly) {
+      result = result.filter((l) => l.favorited);
+    }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       result = result.filter(
@@ -130,7 +135,7 @@ export function LeadsTableClient({
     }
 
     return result;
-  }, [initialLeads, search, cityFilter, tierFilter, segmentFilter, sortColumn, pdfIdSet]);
+  }, [initialLeads, search, cityFilter, tierFilter, segmentFilter, favoritesOnly, sortColumn, pdfIdSet]);
 
   return (
     <div className="space-y-4">
@@ -142,6 +147,26 @@ export function LeadsTableClient({
           className="max-w-sm"
         />
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setFavoritesOnly((p) => !p)}
+            className={cn(
+              "flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors",
+              favoritesOnly
+                ? "border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                : "border-input bg-background text-muted-foreground hover:text-foreground hover:bg-accent"
+            )}
+          >
+            <svg
+              className={cn("size-3.5", favoritesOnly ? "fill-amber-400 text-amber-400" : "fill-none text-current")}
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+            </svg>
+            Favorites
+          </button>
           <select
             value={cityFilter}
             onChange={(e) => setCityFilter(e.target.value)}
@@ -185,6 +210,7 @@ export function LeadsTableClient({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10" />
               <TableHead>
                 <button
                   type="button"
@@ -316,20 +342,38 @@ export function LeadsTableClient({
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
                   No leads match your filters.
                 </TableCell>
               </TableRow>
             ) : (
               filtered.map((lead) => (
                 <TableRow key={lead.id}>
+                  <TableCell className="w-10">
+                    <FavoriteButton
+                      businessId={lead.id}
+                      isFavorited={lead.favorited ?? false}
+                    />
+                  </TableCell>
                   <TableCell>
-                    <Link
-                      href={`/dashboard/leads/${lead.id}`}
-                      className="font-medium text-primary hover:underline"
-                    >
-                      {lead.name}
-                    </Link>
+                    <div className="flex items-center gap-1.5">
+                      <Link
+                        href={`/dashboard/leads/${lead.id}`}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {lead.name}
+                      </Link>
+                      {lead.pipeline_status && lead.pipeline_status !== "lead" && (
+                        <svg
+                          className="size-4 shrink-0 text-emerald-500"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          title={`Status: ${lead.pipeline_status}`}
+                        >
+                          <path d="M7.493 18.75c-.425 0-.82-.236-.975-.632A7.48 7.48 0 016 15.375c0-1.75.599-3.358 1.602-4.634.151-.192.373-.309.6-.397.473-.183.89-.514 1.212-.924a9.042 9.042 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75 2.25 2.25 0 012.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H14.23c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23h-.777zM2.331 10.977a11.969 11.969 0 00-.831 4.398 12 12 0 00.52 3.507c.26.85 1.084 1.368 1.973 1.368H4.9c.445 0 .72-.498.523-.898a8.963 8.963 0 01-.924-3.977c0-1.708.476-3.305 1.302-4.666.245-.403-.028-.959-.5-.959H4.25c-.832 0-1.612.453-1.918 1.227z" />
+                        </svg>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>{lead.city ?? "—"}</TableCell>
                   <TableCell>{lead.category ?? "—"}</TableCell>

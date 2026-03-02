@@ -11,12 +11,14 @@ import {
   DollarSign,
   Mail,
   Send,
+  Radar,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems: { name: string; href: string; icon: LucideIcon }[] = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Scraper", href: "/dashboard/scraper", icon: Radar },
   { name: "Pipeline", href: "/dashboard/pipeline", icon: Kanban },
   { name: "Leads", href: "/dashboard/leads", icon: Users },
   { name: "Emails Found", href: "/dashboard/emails", icon: Mail },

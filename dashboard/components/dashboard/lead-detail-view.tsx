@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/table";
 import { LeadStatusUpdater } from "./lead-status-updater";
 import { EmailOutreachPanel } from "./email-outreach-panel";
+import { FavoriteButton } from "./favorite-button";
+import { EditableEmail } from "./editable-email";
 
 export interface LeadDetailViewProps {
   data: {
@@ -66,6 +68,7 @@ export interface LeadDetailViewProps {
       changed_at: string;
       notes: string | null;
     }>;
+    favorited: boolean;
   };
 }
 
@@ -106,7 +109,7 @@ function AuditPdfButton({ businessId }: { businessId: number }) {
 }
 
 export function LeadDetailView({ data }: LeadDetailViewProps) {
-  const { lead, outreach, lifecycle } = data;
+  const { lead, outreach, lifecycle, favorited } = data;
   if (!lead) return null;
 
   const currentStatus =
@@ -126,8 +129,17 @@ export function LeadDetailView({ data }: LeadDetailViewProps) {
         {/* Business info */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl font-semibold">{lead.name}</CardTitle>
-            <CardDescription>{lead.category ?? "—"}</CardDescription>
+            <div className="flex items-center gap-2">
+              <FavoriteButton
+                businessId={lead.id}
+                isFavorited={favorited}
+                size="md"
+              />
+              <div>
+                <CardTitle className="text-xl font-semibold">{lead.name}</CardTitle>
+                <CardDescription>{lead.category ?? "—"}</CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {lead.address && <p>{lead.address}</p>}
@@ -150,9 +162,10 @@ export function LeadDetailView({ data }: LeadDetailViewProps) {
                 </a>
               </p>
             )}
-            {(lead.best_email || lead.email) && (
-              <p>Email: {lead.best_email ?? lead.email}</p>
-            )}
+            <EditableEmail
+              businessId={lead.id}
+              currentEmail={lead.best_email ?? lead.email ?? null}
+            />
             {lead.rating != null && (
               <p className="flex items-center gap-1">
                 <Star className="size-4 fill-amber-400 text-amber-400" />

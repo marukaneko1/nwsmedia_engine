@@ -8,6 +8,51 @@ import type {
   ActivityItem,
 } from "@/types/database";
 
+const PAGE_SIZE = 1000;
+
+async function fetchAll<T>(
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null }>
+): Promise<T[]> {
+  const results: T[] = [];
+  let offset = 0;
+  while (true) {
+    const { data } = await buildQuery(offset, offset + PAGE_SIZE - 1);
+    if (!data || data.length === 0) break;
+    results.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+  return results;
+}
+
+async function fetchInBatches<T>(
+  ids: number[],
+  buildQuery: (batch: number[]) => PromiseLike<{ data: T[] | null }>
+): Promise<T[]> {
+  if (ids.length === 0) return [];
+  const BATCH = 300;
+  const results: T[] = [];
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const batch = ids.slice(i, i + BATCH);
+    const { data } = await buildQuery(batch);
+    if (data) results.push(...data);
+  }
+  return results;
+}
+
+async function getFavoriteSet(ids?: number[]): Promise<Set<number>> {
+  if (ids && ids.length > 0) {
+    const data = await fetchInBatches(ids, (batch) =>
+      supabase.from("favorites").select("business_id").in("business_id", batch)
+    );
+    return new Set(data.map((r) => r.business_id));
+  }
+  const all = await fetchAll((from, to) =>
+    supabase.from("favorites").select("business_id").range(from, to)
+  );
+  return new Set(all.map((r) => r.business_id));
+}
+
 function normalize(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -70,13 +115,14 @@ export async function getKpis(): Promise<KpiData> {
 
 export async function getDailyLeads(days = 30): Promise<DailyLeadCount[]> {
   const since = new Date(Date.now() - days * 86400000).toISOString();
-  const { data } = await supabase
-    .from("businesses")
-    .select("scraped_at")
-    .gte("scraped_at", since)
-    .order("scraped_at", { ascending: true });
-
-  if (!data) return [];
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from("businesses")
+      .select("scraped_at")
+      .gte("scraped_at", since)
+      .order("scraped_at", { ascending: true })
+      .range(from, to)
+  );
 
   const counts: Record<string, number> = {};
   for (const row of data) {
@@ -98,23 +144,27 @@ export async function getRecentLeads(limit = 20): Promise<LeadWithDetails[]> {
 
   const ids = businesses.map((b) => b.id);
 
-  const [
-    { data: triages },
-    { data: scores },
-    { data: enrichments },
-    { data: lifecycles },
-  ] = await Promise.all([
-    supabase.from("triage_results").select("business_id, status").in("business_id", ids),
-    supabase.from("lead_scores").select("business_id, score, tier, segment").in("business_id", ids),
-    supabase.from("enrichment_data").select("business_id, best_email, owner_name, enrichment_source").in("business_id", ids),
-    supabase.from("lead_lifecycle").select("business_id, status, changed_at").in("business_id", ids).order("changed_at", { ascending: false }),
+  const [triages, scores, enrichments, lifecycles, favSet] = await Promise.all([
+    fetchInBatches(ids, (batch) =>
+      supabase.from("triage_results").select("business_id, status").in("business_id", batch)
+    ),
+    fetchInBatches(ids, (batch) =>
+      supabase.from("lead_scores").select("business_id, score, tier, segment").in("business_id", batch)
+    ),
+    fetchInBatches(ids, (batch) =>
+      supabase.from("enrichment_data").select("business_id, best_email, owner_name, enrichment_source").in("business_id", batch)
+    ),
+    fetchInBatches(ids, (batch) =>
+      supabase.from("lead_lifecycle").select("business_id, status, changed_at").in("business_id", batch).order("changed_at", { ascending: false })
+    ),
+    getFavoriteSet(ids),
   ]);
 
-  const triageMap = Object.fromEntries((triages ?? []).map((t) => [t.business_id, t]));
-  const scoreMap = Object.fromEntries((scores ?? []).map((s) => [s.business_id, s]));
-  const enrichMap = Object.fromEntries((enrichments ?? []).map((e) => [e.business_id, e]));
+  const triageMap = Object.fromEntries(triages.map((t) => [t.business_id, t]));
+  const scoreMap = Object.fromEntries(scores.map((s) => [s.business_id, s]));
+  const enrichMap = Object.fromEntries(enrichments.map((e) => [e.business_id, e]));
   const lifecycleMap: Record<number, string> = {};
-  for (const lc of (lifecycles ?? [])) {
+  for (const lc of lifecycles) {
     if (!lifecycleMap[lc.business_id]) lifecycleMap[lc.business_id] = lc.status;
   }
 
@@ -136,6 +186,7 @@ export async function getRecentLeads(limit = 20): Promise<LeadWithDetails[]> {
     owner_name: enrichMap[b.id]?.owner_name ?? null,
     enrichment_source: enrichMap[b.id]?.enrichment_source ?? null,
     pipeline_status: lifecycleMap[b.id] ?? null,
+    favorited: favSet.has(b.id),
   }));
 }
 
@@ -148,43 +199,50 @@ export async function getLeads(filters?: {
   limit?: number;
   offset?: number;
 }): Promise<{ leads: LeadWithDetails[]; total: number }> {
-  const limit = filters?.limit ?? 10000;
-
-  let query = supabase
+  const { count: totalCount } = await supabase
     .from("businesses")
-    .select("id, name, category, city, phone, website, rating, review_count, scraped_at", { count: "exact" })
-    .order("scraped_at", { ascending: false })
-    .limit(limit);
+    .select("*", { count: "exact", head: true });
 
-  if (filters?.search) {
-    query = query.or(`name.ilike.%${filters.search}%,city.ilike.%${filters.search}%`);
-  }
-  if (filters?.city) {
-    query = query.eq("city", filters.city);
-  }
+  const businesses = await fetchAll((from, to) => {
+    let q = supabase
+      .from("businesses")
+      .select("id, name, category, city, phone, website, rating, review_count, scraped_at")
+      .order("scraped_at", { ascending: false })
+      .range(from, to);
+    if (filters?.search) {
+      q = q.or(`name.ilike.%${filters.search}%,city.ilike.%${filters.search}%`);
+    }
+    if (filters?.city) {
+      q = q.eq("city", filters.city);
+    }
+    return q;
+  });
 
-  const { data: businesses, count } = await query;
-  if (!businesses || businesses.length === 0) return { leads: [], total: 0 };
+  if (businesses.length === 0) return { leads: [], total: 0 };
 
   const ids = businesses.map((b) => b.id);
 
-  const [
-    { data: triages },
-    { data: scores },
-    { data: enrichments },
-    { data: lifecycles },
-  ] = await Promise.all([
-    supabase.from("triage_results").select("business_id, status").in("business_id", ids),
-    supabase.from("lead_scores").select("business_id, score, tier, segment").in("business_id", ids),
-    supabase.from("enrichment_data").select("business_id, best_email, owner_name, enrichment_source").in("business_id", ids),
-    supabase.from("lead_lifecycle").select("business_id, status, changed_at").in("business_id", ids).order("changed_at", { ascending: false }),
+  const [triages, scores, enrichments, lifecycles, favSet] = await Promise.all([
+    fetchInBatches(ids, (batch) =>
+      supabase.from("triage_results").select("business_id, status").in("business_id", batch)
+    ),
+    fetchInBatches(ids, (batch) =>
+      supabase.from("lead_scores").select("business_id, score, tier, segment").in("business_id", batch)
+    ),
+    fetchInBatches(ids, (batch) =>
+      supabase.from("enrichment_data").select("business_id, best_email, owner_name, enrichment_source").in("business_id", batch)
+    ),
+    fetchInBatches(ids, (batch) =>
+      supabase.from("lead_lifecycle").select("business_id, status, changed_at").in("business_id", batch).order("changed_at", { ascending: false })
+    ),
+    getFavoriteSet(ids),
   ]);
 
-  const triageMap = Object.fromEntries((triages ?? []).map((t) => [t.business_id, t]));
-  const scoreMap = Object.fromEntries((scores ?? []).map((s) => [s.business_id, s]));
-  const enrichMap = Object.fromEntries((enrichments ?? []).map((e) => [e.business_id, e]));
+  const triageMap = Object.fromEntries(triages.map((t) => [t.business_id, t]));
+  const scoreMap = Object.fromEntries(scores.map((s) => [s.business_id, s]));
+  const enrichMap = Object.fromEntries(enrichments.map((e) => [e.business_id, e]));
   const lifecycleMap: Record<number, string> = {};
-  for (const lc of (lifecycles ?? [])) {
+  for (const lc of lifecycles) {
     if (!lifecycleMap[lc.business_id]) lifecycleMap[lc.business_id] = lc.status;
   }
 
@@ -206,6 +264,7 @@ export async function getLeads(filters?: {
     owner_name: enrichMap[b.id]?.owner_name ?? null,
     enrichment_source: enrichMap[b.id]?.enrichment_source ?? null,
     pipeline_status: lifecycleMap[b.id] ?? null,
+    favorited: favSet.has(b.id),
   }));
 
   if (filters?.tier) leads = leads.filter((l) => l.tier === filters.tier);
@@ -214,7 +273,7 @@ export async function getLeads(filters?: {
 
   leads.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
-  return { leads, total: count ?? leads.length };
+  return { leads, total: totalCount ?? leads.length };
 }
 
 export async function getLeadById(id: number) {
@@ -228,6 +287,7 @@ export async function getLeadById(id: number) {
     { data: audit },
     { data: outreach },
     { data: lifecycle },
+    favSet,
   ] = await Promise.all([
     supabase.from("triage_results").select("*").eq("business_id", id).single(),
     supabase.from("lead_scores").select("*").eq("business_id", id).single(),
@@ -235,6 +295,7 @@ export async function getLeadById(id: number) {
     supabase.from("website_audits").select("*").eq("business_id", id).single(),
     supabase.from("outreach_log").select("*").eq("business_id", id).order("sent_at", { ascending: false }),
     supabase.from("lead_lifecycle").select("*").eq("business_id", id).order("changed_at", { ascending: false }),
+    getFavoriteSet([id]),
   ]);
 
   const businessId = lead.id;
@@ -252,43 +313,49 @@ export async function getLeadById(id: number) {
     lead: mergedLead,
     outreach: outreach ?? [],
     lifecycle: lifecycle ?? [],
+    favorited: favSet.has(businessId),
   };
 }
 
 export async function getPipelineLeads(): Promise<Record<string, LeadWithDetails[]>> {
-  // Include all leads (not just those with email): base on businesses, then join enrichment and lifecycle
-  const { data: businesses } = await supabase
-    .from("businesses")
-    .select("id, name, category, city, phone, website, rating, review_count, scraped_at")
-    .order("scraped_at", { ascending: false });
+  const businesses = await fetchAll((from, to) =>
+    supabase
+      .from("businesses")
+      .select("id, name, category, city, phone, website, rating, review_count, scraped_at")
+      .order("scraped_at", { ascending: false })
+      .range(from, to)
+  );
 
-  if (!businesses || businesses.length === 0) {
+  if (businesses.length === 0) {
     return { lead: [], contacted: [], replied: [], meeting: [], proposal: [], won: [], lost: [] };
   }
 
   const ids = businesses.map((b) => b.id);
 
-  const [
-    { data: enrichments },
-    { data: triages },
-    { data: scores },
-    { data: lifecycles },
-  ] = await Promise.all([
-    supabase.from("enrichment_data").select("business_id, best_email, owner_name, enrichment_source").in("business_id", ids),
-    supabase.from("triage_results").select("business_id, status").in("business_id", ids),
-    supabase.from("lead_scores").select("business_id, score, tier, segment").in("business_id", ids),
-    supabase.from("lead_lifecycle").select("business_id, status, changed_at").in("business_id", ids).order("changed_at", { ascending: false }),
+  const [enrichments, triages, scores, lifecycles, favSet] = await Promise.all([
+    fetchInBatches(ids, (batch) =>
+      supabase.from("enrichment_data").select("business_id, best_email, owner_name, enrichment_source").in("business_id", batch)
+    ),
+    fetchInBatches(ids, (batch) =>
+      supabase.from("triage_results").select("business_id, status").in("business_id", batch)
+    ),
+    fetchInBatches(ids, (batch) =>
+      supabase.from("lead_scores").select("business_id, score, tier, segment").in("business_id", batch)
+    ),
+    fetchInBatches(ids, (batch) =>
+      supabase.from("lead_lifecycle").select("business_id, status, changed_at").in("business_id", batch).order("changed_at", { ascending: false })
+    ),
+    getFavoriteSet(ids),
   ]);
 
-  const triageMap = Object.fromEntries((triages ?? []).map((t) => [t.business_id, t]));
-  const scoreMap = Object.fromEntries((scores ?? []).map((s) => [s.business_id, s]));
+  const triageMap = Object.fromEntries(triages.map((t) => [t.business_id, t]));
+  const scoreMap = Object.fromEntries(scores.map((s) => [s.business_id, s]));
   const lifecycleMap: Record<number, string> = {};
-  for (const lc of (lifecycles ?? [])) {
+  for (const lc of lifecycles) {
     if (!lifecycleMap[lc.business_id]) lifecycleMap[lc.business_id] = lc.status;
   }
-  // One enrichment row per business (latest); prefer row with email if multiple
   const enrichMap: Record<number, { best_email: string | null; owner_name: string | null; enrichment_source: string | null }> = {};
-  for (const e of (enrichments ?? [])) {
+  for (const e of enrichments) {
     const existing = enrichMap[e.business_id];
     const hasEmail = e.best_email != null && String(e.best_email).trim() !== "";
     const existingHasEmail = existing?.best_email != null && String(existing.best_email).trim() !== "";
@@ -330,11 +397,17 @@ export async function getPipelineLeads(): Promise<Record<string, LeadWithDetails
       owner_name: enrich?.owner_name ?? null,
       enrichment_source: enrich?.enrichment_source ?? null,
       pipeline_status: pipelineStatus,
+      favorited: favSet.has(b.id),
     });
   }
 
   for (const key of Object.keys(pipeline)) {
-    pipeline[key].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    pipeline[key].sort((a, b) => {
+      const aFav = a.favorited ? 1 : 0;
+      const bFav = b.favorited ? 1 : 0;
+      if (bFav !== aFav) return bFav - aFav;
+      return (b.score ?? 0) - (a.score ?? 0);
+    });
   }
 
   return pipeline;
@@ -394,13 +467,15 @@ export async function getRecentActivity(limit = 15): Promise<ActivityItem[]> {
 }
 
 export async function getCities(): Promise<string[]> {
-  const { data } = await supabase
-    .from("businesses")
-    .select("city")
-    .not("city", "is", null)
-    .order("city");
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from("businesses")
+      .select("city")
+      .not("city", "is", null)
+      .order("city")
+      .range(from, to)
+  );
 
-  if (!data) return [];
   return [...new Set(data.map((r) => r.city as string))];
 }
 

@@ -12,17 +12,23 @@ import {
 } from "@/components/ui/table";
 import { supabase } from "@/lib/db";
 import { formatRelative, formatDate } from "@/lib/utils";
+import { getFavoriteIds } from "@/lib/favorite-actions";
+import { FavoriteButton } from "@/components/dashboard/favorite-button";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function OutreachPage() {
-  const { data: outreach } = await supabase
-    .from("outreach_log")
-    .select("*")
-    .order("sent_at", { ascending: false })
-    .limit(300);
+  const [{ data: outreach }, favoriteIds] = await Promise.all([
+    supabase
+      .from("outreach_log")
+      .select("*")
+      .order("sent_at", { ascending: false })
+      .limit(300),
+    getFavoriteIds(),
+  ]);
 
+  const favSet = new Set(favoriteIds);
   const bizIds = [...new Set((outreach ?? []).map((o) => o.business_id))];
 
   const [{ data: businesses }, { data: lifecycles }] = bizIds.length > 0
@@ -45,15 +51,12 @@ export default async function OutreachPage() {
 
   const total = (outreach ?? []).length;
   const byStatus: Record<string, number> = {};
-  const byCampaign: Record<string, number> = {};
   const bySegment: Record<string, number> = {};
   const byPipeline: Record<string, number> = {};
   const seenBiz = new Set<number>();
   for (const o of outreach ?? []) {
     const st = o.status || "unknown";
     byStatus[st] = (byStatus[st] || 0) + 1;
-    const cmp = o.campaign_id ? o.campaign_id.substring(0, 8) + "..." : "none";
-    byCampaign[cmp] = (byCampaign[cmp] || 0) + 1;
     const seg = o.segment || "unknown";
     bySegment[seg] = (bySegment[seg] || 0) + 1;
     if (!seenBiz.has(o.business_id)) {
@@ -63,9 +66,18 @@ export default async function OutreachPage() {
     }
   }
 
-  const sent = byStatus["sent"] || byStatus["queued"] || 0;
   const opened = (outreach ?? []).filter((o) => o.opened_at).length;
   const replied = (outreach ?? []).filter((o) => o.replied_at).length;
+
+  const pipelineColors: Record<string, string> = {
+    lead: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
+    contacted: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+    replied: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300",
+    meeting: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+    proposal: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300",
+    won: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+    lost: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+  };
 
   return (
     <>
@@ -153,6 +165,7 @@ export default async function OutreachPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10" />
                   <TableHead>Business</TableHead>
                   <TableHead>City</TableHead>
                   <TableHead>Email</TableHead>
@@ -167,15 +180,22 @@ export default async function OutreachPage() {
               <TableBody>
                 {(outreach ?? []).length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                       No outreach sent yet. Run the outreach command to push leads to Instantly.
                     </TableCell>
                   </TableRow>
                 )}
                 {(outreach ?? []).map((o) => {
                   const biz = bizMap[o.business_id];
+                  const ps = pipelineMap[o.business_id] ?? "lead";
                   return (
                     <TableRow key={o.id}>
+                      <TableCell className="w-10">
+                        <FavoriteButton
+                          businessId={o.business_id}
+                          isFavorited={favSet.has(o.business_id)}
+                        />
+                      </TableCell>
                       <TableCell>
                         <Link
                           href={`/dashboard/leads/${o.business_id}`}
@@ -192,23 +212,9 @@ export default async function OutreachPage() {
                         {(o.email_sent_to ?? o.email_address) || "—"}
                       </TableCell>
                       <TableCell>
-                        {(() => {
-                          const ps = pipelineMap[o.business_id] ?? "lead";
-                          const colors: Record<string, string> = {
-                            lead: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-                            contacted: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-                            replied: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300",
-                            meeting: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
-                            proposal: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300",
-                            won: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-                            lost: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
-                          };
-                          return (
-                            <Badge className={colors[ps] ?? ""}>
-                              {ps.charAt(0).toUpperCase() + ps.slice(1)}
-                            </Badge>
-                          );
-                        })()}
+                        <Badge className={pipelineColors[ps] ?? ""}>
+                          {ps.charAt(0).toUpperCase() + ps.slice(1)}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         {o.segment ? <Badge variant="secondary">{o.segment}</Badge> : "—"}

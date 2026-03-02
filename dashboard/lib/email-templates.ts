@@ -16,7 +16,9 @@ export interface EmailTemplate {
 
 const HAS_WEBSITE_INITIAL: EmailTemplate = {
   subject: "ideas for {{ company_name }}",
-  body: `Hi {{ first_name }},
+  body: `Hi there,
+
+I don't mean to come across "salesy", this is just a passion of mine.
 
 I came across {{ company_name }} — {{ review_count }} reviews, {{ rating }} stars. Clearly doing something right.
 
