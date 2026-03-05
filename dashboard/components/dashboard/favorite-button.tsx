@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toggleFavorite } from "@/lib/favorite-actions";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +19,10 @@ export function FavoriteButton({
 }: FavoriteButtonProps) {
   const [favorited, setFavorited] = useState(isFavorited);
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    setFavorited(isFavorited);
+  }, [isFavorited]);
 
   const handleClick = async (e: React.MouseEvent) => {
     e.preventDefault();

@@ -20,7 +20,7 @@ function matchVertical(category: string) {
   const cat = (category || "").toLowerCase();
   for (const [key, data] of Object.entries(VERTICAL_ESTIMATES)) {
     if (key === "default") continue;
-    if (cat.includes(key.replace("_", " ")) || cat.includes(key)) return data;
+    if (cat.includes(key.replaceAll("_", " ")) || cat.includes(key)) return data;
   }
   const kws: [string[], string][] = [
     [["heating", "air condition", "cooling", "ac "], "hvac"],

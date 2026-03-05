@@ -72,39 +72,39 @@ const PRESET_NICHES = [
   "electrician",
   "general contractor",
   "landscaping company",
-  "dentist",
-  "orthodontist",
-  "med spa",
-  "medical spa",
-  "aesthetics clinic",
+  "pest control company",
+  "auto repair shop",
+  "tree service",
+  "painting company",
+  "garage door repair",
 ];
 
 const PRESET_LOCATIONS = [
-  "Houston, TX",
-  "Dallas, TX",
-  "Atlanta, GA",
-  "Phoenix, AZ",
-  "Austin, TX",
-  "Boise, ID",
-  "Idaho Falls, ID",
-  "Twin Falls, ID",
-  "Coeur d'Alene, ID",
-  "Nampa, ID",
+  "San Antonio, TX",
+  "Denver, CO",
+  "Tampa, FL",
+  "Orlando, FL",
+  "Nashville, TN",
+  "Charlotte, NC",
+  "Las Vegas, NV",
+  "Jacksonville, FL",
+  "Memphis, TN",
+  "Oklahoma City, OK",
 ];
 
 const BATCH_CONFIGS_SUMMARY = {
   niches: [
     { niche: "HVAC contractor", count: 10 },
-    { niche: "plumber", count: 5 },
-    { niche: "roofer", count: 5 },
-    { niche: "electrician", count: 5 },
-    { niche: "general contractor", count: 4 },
-    { niche: "landscaping company", count: 3 },
-    { niche: "dentist", count: 5 },
-    { niche: "orthodontist", count: 4 },
-    { niche: "med spa", count: 5 },
-    { niche: "medical spa", count: 4 },
-    { niche: "aesthetics clinic", count: 3 },
+    { niche: "plumber", count: 10 },
+    { niche: "roofer", count: 10 },
+    { niche: "electrician", count: 8 },
+    { niche: "general contractor", count: 7 },
+    { niche: "landscaping company", count: 7 },
+    { niche: "pest control company", count: 10 },
+    { niche: "auto repair shop", count: 10 },
+    { niche: "tree service", count: 9 },
+    { niche: "painting company", count: 8 },
+    { niche: "garage door repair", count: 8 },
   ],
   get totalRuns() {
     return this.niches.reduce((sum, n) => sum + n.count, 0);
@@ -362,7 +362,14 @@ export function ScraperPanel() {
 
       if (!res.ok || !res.body) {
         const errorText = await res.text();
-        setOutput((prev) => [...prev, `Error: ${errorText}`]);
+        let msg = errorText;
+        try {
+          const j = JSON.parse(errorText) as { error?: string };
+          if (j?.error) msg = j.error;
+        } catch {
+          /* use raw text */
+        }
+        setOutput((prev) => [...prev, `Error: ${msg}`]);
         setStatus("error");
         return;
       }

@@ -1,7 +1,5 @@
 """Layer 6+7 — Outreach: render emails, generate PDF, push to Instantly.ai, track."""
 
-import os
-from datetime import datetime
 from pathlib import Path
 
 import aiohttp
@@ -10,6 +8,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from src.config import settings
 from src.models.outreach import OutreachLog
+from src.utils.time import utcnow
 
 logger = structlog.get_logger()
 
@@ -22,6 +21,7 @@ INSTANTLY_API_V2 = "https://api.instantly.ai/api/v2"
 def _get_jinja_env() -> Environment:
     return Environment(
         loader=FileSystemLoader(str(TEMPLATES_DIR)),
+        autoescape=True,
         trim_blocks=True,
         lstrip_blocks=True,
     )
@@ -140,7 +140,6 @@ def _build_template_vars(business, triage, audit, enrichment, score_row) -> dict
         "website": business.website or "",
         "rating": str(business.rating) if business.rating else "",
         "review_count": business.review_count or 0,
-        "owner_name": owner_name,
         "triage_status": triage.status if triage else "HAS_WEBSITE",
         "segment": score_row.segment if score_row else "ESTABLISHED",
         "lead_score": score_row.score if score_row else 0,
@@ -160,7 +159,7 @@ def _build_template_vars(business, triage, audit, enrichment, score_row) -> dict
         "sender_title": settings.sender_title,
         "sender_company": settings.sender_company,
         "sender_phone": settings.sender_phone,
-        "generated_date": datetime.now().strftime("%B %d, %Y"),
+        "generated_date": utcnow().strftime("%B %d, %Y"),
     }
     return v
 
@@ -301,7 +300,10 @@ async def add_lead_to_instantly(
         timeout = aiohttp.ClientTimeout(total=15)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(f"{INSTANTLY_API_V2}/leads", json=payload, headers=headers) as resp:
-                data = await resp.json() if resp.content_length else {}
+                try:
+                    data = await resp.json()
+                except Exception:
+                    data = {}
                 if resp.status >= 400:
                     logger.warning("instantly_add_failed", status=resp.status, body=data)
                     return None
@@ -342,7 +344,7 @@ async def queue_lead(
         email_sent_to=email,
         campaign_id=get_campaign_id_for_lead(triage, campaign_id) or settings.instantly_campaign_id_maps,
         status=status,
-        sent_at=datetime.utcnow() if status == "queued" else None,
+        sent_at=utcnow() if status == "queued" else None,
     )
     db_session.add(record)
     await db_session.commit()
@@ -376,6 +378,7 @@ async def run_outreach(
             select(OutreachLog).where(
                 OutreachLog.business_id == biz.id,
                 OutreachLog.source_channel == "google_maps",
+                OutreachLog.status != "dry_run",
             )
         )).scalar_one_or_none()
         if existing:

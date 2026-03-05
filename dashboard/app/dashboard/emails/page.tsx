@@ -69,7 +69,7 @@ export default async function EmailsPage() {
           {dataError}
         </div>
       )}
-      <main className="p-6 max-w-[1400px] space-y-6">
+      <main className="w-full space-y-6 p-6">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Card>
             <CardContent className="p-4">
@@ -105,7 +105,7 @@ export default async function EmailsPage() {
           {Object.entries(bySource).sort((a, b) => b[1] - a[1]).map(([src, count]) => (
             <Card key={src}>
               <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">via {src.replace("_", " ")}</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">via {src.replaceAll("_", " ")}</p>
                 <p className="text-xl font-semibold mt-1">{count}</p>
               </CardContent>
             </Card>
@@ -162,7 +162,7 @@ export default async function EmailsPage() {
                       </TableCell>
                       <TableCell>
                         {e.enrichment_source ? (
-                          <Badge variant="secondary">{e.enrichment_source.replace("_", " ")}</Badge>
+                          <Badge variant="secondary">{e.enrichment_source.replaceAll("_", " ")}</Badge>
                         ) : (
                           <span className="text-sm text-muted-foreground">—</span>
                         )}

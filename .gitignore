@@ -40,6 +40,12 @@ Thumbs.db
 *.log
 logs/
 
+# Node
+node_modules/
+
+# Next.js
+.next/
+
 # Misc
 *.bak
 *.tmp

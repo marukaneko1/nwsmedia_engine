@@ -20,7 +20,7 @@ export function RecentActivity({ activities }: RecentActivityProps) {
       <CardHeader>
         <h3 className="text-sm font-medium text-foreground">Recent Activity</h3>
       </CardHeader>
-      <CardContent className="space-y-0 divide-y divide-border max-h-[320px] overflow-y-auto">
+      <CardContent className="h-[348px] space-y-0 divide-y divide-border overflow-y-auto">
         {activities.map((activity) => (
           <div
             key={`${activity.type}-${activity.id}`}

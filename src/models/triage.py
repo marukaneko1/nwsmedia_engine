@@ -4,6 +4,7 @@ from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, Strin
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
+from src.utils.time import utcnow
 
 
 class TriageResult(Base):
@@ -15,7 +16,7 @@ class TriageResult(Base):
     http_status: Mapped[int | None] = mapped_column(Integer)
     redirect_url: Mapped[str | None] = mapped_column(Text)
     is_free_subdomain: Mapped[bool] = mapped_column(Boolean, default=False)
-    triaged_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    triaged_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     def __repr__(self) -> str:
         return f"<TriageResult(business_id={self.business_id}, status='{self.status}')>"

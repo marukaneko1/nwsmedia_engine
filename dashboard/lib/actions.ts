@@ -15,7 +15,7 @@ export async function sendOutreachEmail(params: {
   followUpCount: number;
   senderEmail?: string;
 }): Promise<{ ok: boolean; error?: string }> {
-  const creds = getAccountCredentials(params.senderEmail);
+  const creds = await getAccountCredentials(params.senderEmail);
 
   if (!creds) {
     return {

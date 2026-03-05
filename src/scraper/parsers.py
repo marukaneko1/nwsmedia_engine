@@ -7,7 +7,7 @@ from playwright.async_api import Page
 
 async def extract_listings_from_panel(page: Page) -> list[dict]:
     """Extract basic listing info from the visible Maps results panel."""
-    results = await page.evaluate("""
+    results = await page.evaluate(r"""
         () => {
             const items = document.querySelectorAll('div[role="feed"] > div > div > a');
             return Array.from(items).map(a => {
@@ -40,7 +40,7 @@ async def extract_listings_from_panel(page: Page) -> list[dict]:
 
 async def extract_detail_from_panel(page: Page) -> dict:
     """Extract full details from an opened Maps listing panel."""
-    data = await page.evaluate("""
+    data = await page.evaluate(r"""
         () => {
             const result = {};
 
@@ -78,7 +78,7 @@ async def extract_detail_from_panel(page: Page) -> dict:
             }
             if (!email) {
                 const text = document.body ? document.body.innerText : '';
-                const match = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/);
+                const match = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
                 if (match) email = match[0];
             }
             result.email = email;
@@ -90,7 +90,7 @@ async def extract_detail_from_panel(page: Page) -> dict:
             // Review count
             const reviewEl = document.querySelector('div.F7nice span[aria-label*="review"]');
             if (reviewEl) {
-                const match = reviewEl.getAttribute('aria-label').match(/([\\d,]+)/);
+                const match = reviewEl.getAttribute('aria-label').match(/([\d,]+)/);
                 result.review_count = match ? parseInt(match[1].replace(',', '')) : 0;
             } else {
                 result.review_count = 0;
@@ -137,7 +137,7 @@ async def extract_detail_from_panel(page: Page) -> dict:
             result.maps_url = url;
 
             // Coordinates from URL
-            const coordMatch = url.match(/@(-?[\\d.]+),(-?[\\d.]+)/);
+            const coordMatch = url.match(/@(-?[\d.]+),(-?[\d.]+)/);
             if (coordMatch) {
                 result.latitude = parseFloat(coordMatch[1]);
                 result.longitude = parseFloat(coordMatch[2]);

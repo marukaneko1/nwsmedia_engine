@@ -36,8 +36,8 @@ export function OverviewTable({ leads }: OverviewTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {leads.map((lead) => (
-              <TableRow key={lead.id}>
+            {leads.map((lead, idx) => (
+              <TableRow key={`${lead.id}-${idx}`}>
                 <TableCell>
                   <Link
                     href={`/dashboard/leads/${lead.id}`}
@@ -73,7 +73,7 @@ export function OverviewTable({ leads }: OverviewTableProps) {
                       variant="outline"
                       className={cn("border", segmentColor(lead.segment))}
                     >
-                      {lead.segment.replace("_", " ")}
+                      {lead.segment.replaceAll("_", " ")}
                     </Badge>
                   ) : (
                     "—"
@@ -88,7 +88,7 @@ export function OverviewTable({ leads }: OverviewTableProps) {
                       variant="outline"
                       className={cn("border", triageColor(lead.triage_status))}
                     >
-                      {lead.triage_status.replace("_", " ")}
+                      {lead.triage_status.replaceAll("_", " ")}
                     </Badge>
                   ) : (
                     "—"

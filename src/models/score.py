@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
+from src.utils.time import utcnow
 
 
 class LeadScore(Base):
@@ -16,7 +17,7 @@ class LeadScore(Base):
     tier: Mapped[str] = mapped_column(String(10), nullable=False)
     segment: Mapped[str | None] = mapped_column(String(20))
     score_breakdown: Mapped[dict | None] = mapped_column(JSONB)
-    scored_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    scored_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     __table_args__ = (
         CheckConstraint("score >= 0 AND score <= 100", name="ck_lead_scores_range"),

@@ -131,7 +131,7 @@ export function LeadDetailView({ data }: LeadDetailViewProps) {
     <div className="space-y-6">
       <Button
         variant="ghost"
-        onClick={() => router.back()}
+        onClick={() => router.push("/dashboard/leads")}
         className="gap-1.5 text-muted-foreground hover:text-foreground -ml-2"
       >
         <ArrowLeft className="size-4" />

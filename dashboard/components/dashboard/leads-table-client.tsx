@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import type { LeadWithDetails } from "@/types/database";
@@ -54,6 +54,7 @@ export function LeadsTableClient({
   const pathname = usePathname();
 
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [cityFilter, setCityFilter] = useState<string>(searchParams.get("city") ?? "all");
   const [tierFilter, setTierFilter] = useState<string>(searchParams.get("tier") ?? "all");
   const [segmentFilter, setSegmentFilter] = useState<string>(searchParams.get("segment") ?? "all");
@@ -62,6 +63,12 @@ export function LeadsTableClient({
     const s = searchParams.get("sort");
     return s && VALID_SORT_KEYS.includes(s as SortKey) ? (s as SortKey) : null;
   });
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    debounceRef.current = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(debounceRef.current);
+  }, [search]);
 
   const syncParams = useCallback(
     (overrides: Record<string, string | null>) => {
@@ -81,14 +88,14 @@ export function LeadsTableClient({
 
   useEffect(() => {
     syncParams({
-      q: search || null,
+      q: debouncedSearch || null,
       city: cityFilter === "all" ? null : cityFilter,
       tier: tierFilter === "all" ? null : tierFilter,
       segment: segmentFilter === "all" ? null : segmentFilter,
       fav: favoritesOnly ? "1" : null,
       sort: sortColumn,
     });
-  }, [search, cityFilter, tierFilter, segmentFilter, favoritesOnly, sortColumn, syncParams]);
+  }, [debouncedSearch, cityFilter, tierFilter, segmentFilter, favoritesOnly, sortColumn, syncParams]);
 
   const handleSort = (key: SortKey) => {
     setSortColumn((prev) => (prev === key ? null : key));
@@ -100,8 +107,8 @@ export function LeadsTableClient({
     if (favoritesOnly) {
       result = result.filter((l) => l.favorited);
     }
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.trim().toLowerCase();
       result = result.filter(
         (l) =>
           (l.name && l.name.toLowerCase().includes(q)) ||
@@ -174,7 +181,7 @@ export function LeadsTableClient({
     }
 
     return result;
-  }, [initialLeads, search, cityFilter, tierFilter, segmentFilter, favoritesOnly, sortColumn, pdfIdSet]);
+  }, [initialLeads, debouncedSearch, cityFilter, tierFilter, segmentFilter, favoritesOnly, sortColumn, pdfIdSet]);
 
   return (
     <div className="space-y-4">
@@ -386,8 +393,8 @@ export function LeadsTableClient({
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((lead) => (
-                <TableRow key={lead.id}>
+              filtered.map((lead, idx) => (
+                <TableRow key={`${lead.id}-${idx}`}>
                   <TableCell className="w-10">
                     <FavoriteButton
                       businessId={lead.id}

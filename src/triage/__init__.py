@@ -1,12 +1,12 @@
 """Layer 2 — Website triage: classify businesses by website status."""
 
 import re
-from datetime import datetime
 
 import aiohttp
 import structlog
 
 from src.models.triage import TriageResult
+from src.utils.time import utcnow
 
 logger = structlog.get_logger()
 
@@ -113,7 +113,6 @@ async def triage_business(website: str | None) -> dict:
 async def run_triage(session, businesses: list) -> dict:
     """Triage a list of Business ORM objects. Returns counts by status."""
     from sqlalchemy import select
-    from src.models.triage import TriageResult
 
     counts = {"NO_WEBSITE": 0, "DEAD_WEBSITE": 0, "FREE_SUBDOMAIN": 0, "PAGE_BUILDER": 0, "HAS_WEBSITE": 0, "skipped": 0}
 
@@ -132,12 +131,12 @@ async def run_triage(session, businesses: list) -> dict:
             http_status=result["http_status"],
             redirect_url=result["redirect_url"],
             is_free_subdomain=result["is_free_subdomain"],
-            triaged_at=datetime.utcnow(),
+            triaged_at=utcnow(),
         )
         session.add(record)
-        await session.commit()
 
         counts[result["status"]] += 1
         logger.info("triaged", business=biz.name, status=result["status"])
 
+    await session.commit()
     return counts

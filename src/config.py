@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     lob_api_key_test: str = ""
     instantly_campaign_id_llc: str = ""
 
+    # Daily summary email (Phase 4)
+    summary_email_from: str = ""
+    summary_email_password: str = ""
+    summary_email_to: str = ""
+
     # Sender identity
     sender_name: str = "NWS Media"
     sender_title: str = "Founder"

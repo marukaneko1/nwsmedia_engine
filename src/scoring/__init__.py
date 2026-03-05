@@ -10,11 +10,10 @@ Scoring adjusts per segment so NEW_SMALL leads aren't penalised for lacking
 reviews; they get a "growth opportunity" bonus instead.
 """
 
-from datetime import datetime
-
 import structlog
 
 from src.models.score import LeadScore
+from src.utils.time import utcnow
 
 logger = structlog.get_logger()
 
@@ -98,8 +97,8 @@ def calculate_lead_score(
     # === FRESHNESS (max 8) ===
     fresh_pts = 0
     if audit and audit.is_outdated:
-        years = (datetime.now().year - audit.copyright_year) if audit.copyright_year else 1
-        fresh_pts = min(years * 2, 8)
+        years = (utcnow().year - audit.copyright_year) if audit.copyright_year else 1
+        fresh_pts = max(0, min(years * 2, 8))
     score += fresh_pts
     breakdown["freshness"] = fresh_pts
 
@@ -200,14 +199,14 @@ async def run_scoring(session, businesses_with_data: list[tuple]) -> dict:
             tier=tier,
             segment=segment,
             score_breakdown=breakdown,
-            scored_at=datetime.utcnow(),
+            scored_at=utcnow(),
         )
         session.add(record)
-        await session.commit()
 
         tier_counts[tier] += 1
         segment_counts[segment] = segment_counts.get(segment, 0) + 1
         logger.info("scored", business=biz.name, score=score, tier=tier, segment=segment)
 
+    await session.commit()
     tier_counts["segments"] = segment_counts
     return tier_counts

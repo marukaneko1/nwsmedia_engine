@@ -29,7 +29,7 @@ export function LeadsChart({ data }: LeadsChartProps) {
         <h3 className="text-sm font-medium text-foreground">Leads Over Time</h3>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={280}>
+        <ResponsiveContainer width="100%" height={320}>
           <AreaChart data={data}>
             <defs>
               <linearGradient id="fillBlue" x1="0" y1="0" x2="0" y2="1">

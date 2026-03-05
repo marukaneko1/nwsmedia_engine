@@ -2,6 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
+import { invalidateCache } from "@/lib/queries";
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -23,7 +24,9 @@ export async function toggleFavorite(
 
   if (existing) {
     await supabase.from("favorites").delete().eq("business_id", businessId);
-    revalidatePath("/dashboard");
+    invalidateCache("all_leads");
+    invalidateCache("pipeline_leads");
+    revalidatePath("/dashboard", "layout");
     return { favorited: false };
   }
 
@@ -33,7 +36,9 @@ export async function toggleFavorite(
 
   if (error) throw new Error(`Failed to favorite: ${error.message}`);
 
-  revalidatePath("/dashboard");
+  invalidateCache("all_leads");
+  invalidateCache("pipeline_leads");
+  revalidatePath("/dashboard", "layout");
   return { favorited: true };
 }
 

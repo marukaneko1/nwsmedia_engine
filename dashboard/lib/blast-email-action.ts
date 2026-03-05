@@ -31,7 +31,7 @@ export async function sendBlastEmails(
   businessIds: number[],
   senderEmail?: string
 ): Promise<BlastResult[]> {
-  const creds = getAccountCredentials(senderEmail);
+  const creds = await getAccountCredentials(senderEmail);
 
   if (!creds) {
     return businessIds.map((id) => ({

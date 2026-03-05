@@ -4,7 +4,6 @@ Pipeline: scrape website contact pages → Hunter.io fallback → save to enrich
 """
 
 import re
-from datetime import datetime
 from urllib.parse import urlparse
 
 import aiohttp
@@ -12,6 +11,7 @@ import structlog
 
 from src.config import settings
 from src.models.enrichment import EnrichmentData
+from src.utils.time import utcnow
 
 logger = structlog.get_logger()
 
@@ -141,7 +141,7 @@ async def find_email_hunter(domain: str) -> dict:
     owner_titles = ("owner", "founder", "ceo", "president", "director", "manager", "partner")
     owner_emails = [
         e for e in email_list
-        if e.get("position") and any(t in e["position"].lower() for t in owner_titles)
+        if isinstance(e.get("position"), str) and any(t in e["position"].lower() for t in owner_titles)
     ]
 
     best = (owner_emails or email_list or [{}])[0]
@@ -153,7 +153,7 @@ async def find_email_hunter(domain: str) -> dict:
         "owner_name": f"{best.get('first_name', '')} {best.get('last_name', '')}".strip() or None,
         "owner_position": best.get("position"),
         "confidence": best.get("confidence"),
-        "all_emails": [e["value"] for e in email_list[:5]],
+        "all_emails": [e.get("value") for e in email_list[:5] if e.get("value")],
     }
 
 
@@ -239,10 +239,9 @@ async def run_enrichment(session, businesses: list, min_score: int = 40) -> dict
             owner_position=data["owner_position"],
             social_profiles=data["social_profiles"] if data["social_profiles"] else None,
             enrichment_source=data["source"],
-            enriched_at=datetime.utcnow(),
+            enriched_at=utcnow(),
         )
         session.add(record)
-        await session.commit()
 
         if data["source"] == "hunter":
             counts["hunter_used"] += 1
@@ -254,4 +253,5 @@ async def run_enrichment(session, businesses: list, min_score: int = 40) -> dict
             counts["no_email"] += 1
             logger.info("enriched_no_email", business=biz.name, socials=len(data["social_profiles"]))
 
+    await session.commit()
     return counts

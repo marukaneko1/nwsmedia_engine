@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
+from src.utils.time import utcnow
 
 
 class WebsiteAudit(Base):
@@ -52,7 +53,7 @@ class WebsiteAudit(Base):
     # Raw data
     raw_lighthouse: Mapped[dict | None] = mapped_column(JSONB)
 
-    audited_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    audited_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     def __repr__(self) -> str:
         return f"<WebsiteAudit(business_id={self.business_id}, perf={self.performance_score})>"

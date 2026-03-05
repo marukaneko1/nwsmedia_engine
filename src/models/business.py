@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
+from src.utils.time import utcnow
 
 
 class Business(Base):
@@ -30,8 +31,8 @@ class Business(Base):
     longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7))
     hours: Mapped[dict | None] = mapped_column(JSONB)
     maps_url: Mapped[str | None] = mapped_column(Text)
-    scraped_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    scraped_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
     __table_args__ = (
         Index("idx_businesses_place_id", "place_id"),

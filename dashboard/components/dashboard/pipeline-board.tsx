@@ -268,7 +268,7 @@ function FilterBar({
         <option value="">All Segments</option>
         {SEGMENTS.map((s) => (
           <option key={s} value={s}>
-            {s.replace("_", " ")}
+            {s.replaceAll("_", " ")}
           </option>
         ))}
       </select>
@@ -441,9 +441,9 @@ export function PipelineBoard({ initialData }: PipelineBoardProps) {
                   </Badge>
                 </div>
                 <div className="flex flex-col gap-2 min-h-[60px]">
-                  {leads.map((lead) => (
+                  {leads.map((lead, idx) => (
                     <LeadCard
-                      key={lead.id}
+                      key={`${lead.id}-${idx}`}
                       lead={lead}
                       columnKey={col.key}
                       onMove={(toStatus) =>

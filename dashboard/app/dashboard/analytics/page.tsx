@@ -53,7 +53,7 @@ export default async function AnalyticsPage() {
           {dataError}
         </div>
       )}
-      <main className="p-6 max-w-[1400px] space-y-6">
+      <main className="w-full space-y-6 p-6">
         {/* Summary row */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <MiniStat label="Total Leads" value={kpis.totalLeads} />

@@ -211,12 +211,19 @@
 
 ## Phase 4: Automation + Scheduling — Week 4-5 (Sections 1, 19)
 
-- [ ] Celery + Redis installed and configured
-- [ ] Celery Beat scheduler set up
-- [ ] Pipeline orchestrator: scrape → triage → audit → score → enrich → queue
-- [ ] Error handling and retry logic on every task
-- [ ] Daily summary email (new leads, top scores, outreach stats)
-- [ ] Structured logging (JSON logs, error tracking)
+### Celery + Pipeline Automation
+- [x] Celery + Redis installed and configured — `src/celery_app.py` (Redis broker, JSON serialization, acks_late, prefetch=1)
+- [x] Celery Beat scheduler set up — nightly full pipeline at 2:00 AM ET, daily summary email at 8:00 AM ET
+- [x] Pipeline orchestrator: scrape → triage → audit → score → enrich → outreach — `src/tasks/pipeline.py` (Celery chain)
+- [x] Error handling and retry logic on every task — max_retries 2-3, exponential backoff, `acks_late`, time limits on audit/enrich
+- [x] Daily summary email (new leads, top scores, outreach stats) — `src/tasks/summary.py` (HTML email via Gmail SMTP)
+- [x] Structured logging (JSON logs for production, console for dev) — `src/utils/logging.py` (auto-detect TTY, `LOG_FORMAT=json` env var)
+- [x] CLI commands: `worker`, `beat`, `trigger-pipeline`, `trigger-summary` — `src/cli.py`
+- [x] `src/pipeline/__init__.py` — convenience imports for programmatic access
+- [x] `src/config.py` — added `SUMMARY_EMAIL_FROM`, `SUMMARY_EMAIL_PASSWORD`, `SUMMARY_EMAIL_TO`
+- [x] `.env.example` updated with new env vars
+
+### Deployment (not yet)
 - [ ] Deployed to VPS (DigitalOcean/Railway)
 - [ ] systemd services configured for Celery worker + beat
 - [ ] **TEST**: Automated run for 5 consecutive days

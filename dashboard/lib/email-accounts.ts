@@ -44,9 +44,9 @@ export async function getSenderAccounts(): Promise<SenderAccount[]> {
   }));
 }
 
-export function getAccountCredentials(
+export async function getAccountCredentials(
   senderEmail?: string
-): { user: string; pass: string; displayName: string } | null {
+): Promise<{ user: string; pass: string; displayName: string } | null> {
   const accounts = loadAccounts();
   if (accounts.length === 0) return null;
 

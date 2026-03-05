@@ -201,7 +201,7 @@ export function BlastEmailClient({ leads }: { leads: BlastLead[] }) {
               {progress}
             </p>
           )}
-          {senderAccounts.length > 1 && (
+          {senderAccounts.length > 1 ? (
             <select
               value={selectedSender}
               onChange={(e) => setSelectedSender(e.target.value)}
@@ -213,7 +213,11 @@ export function BlastEmailClient({ leads }: { leads: BlastLead[] }) {
                 </option>
               ))}
             </select>
-          )}
+          ) : senderAccounts.length === 1 ? (
+            <span className="text-xs text-muted-foreground">
+              From: {senderAccounts[0].email}
+            </span>
+          ) : null}
           <Button
             onClick={handleSend}
             disabled={selected.size === 0 || sending}

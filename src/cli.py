@@ -84,20 +84,156 @@ def scrape_batch(max_per_run: int, headless: bool, dry_run: bool) -> None:
     asyncio.run(_scrape_batch(max_per_run, headless, dry_run))
 
 
-# Target niches + cities from LEAD_ENGINE_PLAN.md Section 16
-# Idaho (rural) HVAC added for more leads with email in that market
+# Shared location pools — keeps configs DRY and easy to expand
+_LOCATIONS_TIER1 = [
+    "San Antonio, TX", "Denver, CO", "Tampa, FL", "Orlando, FL", "Nashville, TN",
+    "Charlotte, NC", "Las Vegas, NV", "Jacksonville, FL", "Memphis, TN", "Oklahoma City, OK",
+]
+_LOCATIONS_TIER2 = [
+    "Austin, TX", "Houston, TX", "Dallas, TX", "Phoenix, AZ", "Tucson, AZ",
+    "Raleigh, NC", "Richmond, VA", "Louisville, KY", "Indianapolis, IN", "Columbus, OH",
+    "Kansas City, MO", "Omaha, NE", "Birmingham, AL", "Knoxville, TN", "Boise, ID",
+]
+_LOCATIONS_TIER3 = [
+    "Colorado Springs, CO", "Fort Worth, TX", "St. Petersburg, FL", "Sarasota, FL",
+    "Greenville, SC", "Chattanooga, TN", "Tulsa, OK", "Little Rock, AR",
+    "Albuquerque, NM", "El Paso, TX", "Bakersfield, CA", "Fresno, CA",
+    "Wichita, KS", "Spokane, WA", "Des Moines, IA",
+]
+_LOCATIONS_TIER4 = [
+    "Atlanta, GA", "Miami, FL", "New Orleans, LA", "Salt Lake City, UT", "Portland, OR",
+    "Sacramento, CA", "San Diego, CA", "Minneapolis, MN", "Milwaukee, WI", "Detroit, MI",
+    "Cleveland, OH", "Pittsburgh, PA", "Cincinnati, OH", "St. Louis, MO", "Virginia Beach, VA",
+    "Grand Rapids, MI", "Baton Rouge, LA", "Charleston, SC", "Savannah, GA", "Mobile, AL",
+]
+_LOCATIONS_TIER5 = [
+    "Lexington, KY", "Huntsville, AL", "Fayetteville, AR", "Shreveport, LA", "Lubbock, TX",
+    "Amarillo, TX", "Corpus Christi, TX", "McAllen, TX", "Laredo, TX", "Midland, TX",
+    "Pensacola, FL", "Tallahassee, FL", "Gainesville, FL", "Lakeland, FL", "Cape Coral, FL",
+    "Columbia, SC", "Augusta, GA", "Macon, GA", "Wilmington, NC", "Asheville, NC",
+    "Provo, UT", "Ogden, UT", "Reno, NV", "Bozeman, MT", "Billings, MT",
+    "Sioux Falls, SD", "Fargo, ND", "Cedar Rapids, IA", "Lincoln, NE", "Topeka, KS",
+    "Springfield, MO", "Branson, MO", "Rogers, AR", "Bentonville, AR", "Tyler, TX",
+    "Beaumont, TX", "Killeen, TX", "Abilene, TX", "Anchorage, AK", "Honolulu, HI",
+]
+_ALL_LOCATIONS = _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4 + _LOCATIONS_TIER5
+
 BATCH_SEARCH_CONFIGS = [
-    {"niche": "HVAC contractor", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ", "Austin, TX", "Boise, ID", "Idaho Falls, ID", "Twin Falls, ID", "Coeur d'Alene, ID", "Nampa, ID"]},
-    {"niche": "plumber", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ", "Austin, TX"]},
-    {"niche": "roofer", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ", "Austin, TX"]},
-    {"niche": "electrician", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ", "Austin, TX"]},
-    {"niche": "general contractor", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ"]},
-    {"niche": "landscaping company", "locations": ["Houston, TX", "Dallas, TX", "Phoenix, AZ"]},
-    {"niche": "dentist", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ", "Austin, TX"]},
-    {"niche": "orthodontist", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ"]},
-    {"niche": "med spa", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ", "Austin, TX"]},
-    {"niche": "medical spa", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA", "Phoenix, AZ"]},
-    {"niche": "aesthetics clinic", "locations": ["Houston, TX", "Dallas, TX", "Atlanta, GA"]},
+    # ── Core home-service niches (all locations) ──
+    {"niche": "HVAC contractor",       "locations": _ALL_LOCATIONS},
+    {"niche": "plumber",               "locations": _ALL_LOCATIONS},
+    {"niche": "roofer",                "locations": _ALL_LOCATIONS},
+    {"niche": "electrician",           "locations": _ALL_LOCATIONS},
+
+    # ── Proven trades (tier 1-4) ──
+    {"niche": "general contractor",    "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "landscaping company",   "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "pest control company",  "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "auto repair shop",      "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+
+    # ── Underserved / weak web presence (tier 1-4) ──
+    {"niche": "tree service",          "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "painting company",      "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "garage door repair",    "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "fence company",         "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "concrete contractor",   "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "septic tank service",   "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+
+    # ── Local services hungry for websites (tier 1-4) ──
+    {"niche": "junk removal",          "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "pressure washing",      "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "window cleaning company", "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "carpet cleaning",       "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "chimney sweep",         "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+    {"niche": "pool cleaning service", "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "appliance repair",      "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "locksmith",             "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "moving company",        "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "flooring installer",    "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "handyman",              "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "drywall contractor",    "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "foundation repair",     "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "gutter cleaning",       "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "water damage restoration", "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+
+    # ── Medical / wellness (small practices, bad websites) ──
+    {"niche": "dentist",               "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "chiropractor",          "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "physical therapy clinic", "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "veterinarian",          "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "optometrist",           "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "dermatologist",         "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+    {"niche": "med spa",              "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+
+    # ── Auto / vehicle services ──
+    {"niche": "car detailing",         "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "tire shop",             "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "towing company",        "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "auto body shop",        "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "oil change shop",       "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+    {"niche": "transmission repair",   "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+
+    # ── Food / hospitality (tons of bad websites) ──
+    {"niche": "restaurant",            "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "bakery",                "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "catering company",      "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "food truck",            "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+    {"niche": "coffee shop",           "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+    {"niche": "bar",                   "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+
+    # ── Personal services / beauty ──
+    {"niche": "hair salon",            "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "barber shop",           "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "nail salon",            "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "tattoo shop",           "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "massage therapist",     "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "personal trainer",      "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "yoga studio",           "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+    {"niche": "photography studio",    "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "wedding photographer",  "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+
+    # ── Professional services (often outdated sites) ──
+    {"niche": "accountant",            "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "insurance agent",       "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "real estate agent",     "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "attorney",              "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "tax preparer",          "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+    {"niche": "financial advisor",     "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+
+    # ── Specialty home services ──
+    {"niche": "solar panel installer", "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "home inspector",        "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "glass repair",          "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "insulation contractor", "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+    {"niche": "irrigation company",    "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+    {"niche": "lawn care service",     "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "mold remediation",      "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "demolition contractor", "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+    {"niche": "paving company",        "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "cabinet maker",         "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+    {"niche": "countertop installer",  "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+
+    # ── Pet / animal services ──
+    {"niche": "dog groomer",           "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "pet boarding",          "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "dog trainer",           "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+
+    # ── Education / childcare ──
+    {"niche": "daycare",               "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "tutoring service",      "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "martial arts studio",   "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "dance studio",          "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+    {"niche": "music school",          "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+
+    # ── Misc local businesses ──
+    {"niche": "self storage",          "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "laundromat",            "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "dry cleaner",           "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+    {"niche": "print shop",            "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2},
+    {"niche": "sign company",          "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "event planner",         "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
+    {"niche": "cleaning service",      "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3 + _LOCATIONS_TIER4},
+    {"niche": "security company",      "locations": _LOCATIONS_TIER1 + _LOCATIONS_TIER2 + _LOCATIONS_TIER3},
 ]
 
 
@@ -259,7 +395,6 @@ def triage() -> None:
 
 async def _triage() -> None:
     from sqlalchemy import select
-    from sqlalchemy.orm import selectinload
 
     from src.database import async_session
     from src.models.business import Business
@@ -558,12 +693,12 @@ async def _generate_pdfs(min_score: int, max_leads: int | None, output_dir: str 
 
 @cli.command()
 def pipeline() -> None:
-    """Run full pipeline: triage → audit → score → enrich."""
+    """Run full pipeline: triage -> audit -> score -> enrich."""
     asyncio.run(_pipeline())
 
 
 async def _pipeline() -> None:
-    console.print("\n[bold blue]Full Pipeline: Triage → Audit → Score → Enrich[/bold blue]\n")
+    console.print("\n[bold blue]Full Pipeline: Triage -> Audit -> Score -> Enrich[/bold blue]\n")
 
     console.print("[bold]Step 1/4: Triage[/bold]")
     await _triage()
@@ -587,7 +722,7 @@ def rescore() -> None:
 
 
 async def _rescore() -> None:
-    from sqlalchemy import delete, select
+    from sqlalchemy import delete, func, select
 
     from src.database import async_session
     from src.models.audit import WebsiteAudit
@@ -597,12 +732,10 @@ async def _rescore() -> None:
     from src.scoring import run_scoring
 
     async with async_session() as session:
-        count = (await session.execute(
-            select(LeadScore.id)
-        )).all()
+        count_result = (await session.execute(select(func.count(LeadScore.id)))).scalar() or 0
         await session.execute(delete(LeadScore))
         await session.commit()
-        console.print(f"[yellow]Cleared {len(count)} existing scores[/yellow]")
+        console.print(f"[yellow]Cleared {count_result} existing scores[/yellow]")
 
     async with async_session() as session:
         triaged = (await session.execute(
@@ -692,20 +825,8 @@ async def _segment_stats() -> None:
         summary.add_row(seg, str(total))
     console.print(summary)
 
-    # Outreach reply/close rates per segment (once Phase 3 populates outreach_log)
     from src.models.outreach import OutreachLog
 
-    outreach_rows = (await session.execute(
-        select(
-            OutreachLog.segment,
-            func.count(OutreachLog.id).label("total_sent"),
-            func.count(OutreachLog.replied_at).label("replies"),
-        )
-        .where(OutreachLog.segment.isnot(None))
-        .group_by(OutreachLog.segment)
-    )).all() if False else []  # Placeholder — will activate once outreach runs
-
-    # Workaround: query outreach if data exists
     try:
         async with async_session() as session:
             outreach_rows = (await session.execute(
@@ -732,6 +853,81 @@ async def _segment_stats() -> None:
         console.print(o_table)
     else:
         console.print("\n[dim]No outreach data yet — reply/close tracking will appear once emails are sent.[/dim]")
+
+
+@cli.command("dedup")
+@click.option("--dry-run", is_flag=True, help="Only show how many dupes, don't delete")
+def dedup(dry_run: bool) -> None:
+    """Find and remove duplicate businesses (keeps the oldest row per name+phone/name+city)."""
+    asyncio.run(_dedup(dry_run))
+
+
+async def _dedup(dry_run: bool) -> None:
+    from sqlalchemy import delete, select
+
+    from src.database import async_session
+    from src.models.business import Business
+    from src.scraper.deduplication import normalize_name, normalize_phone
+
+    async with async_session() as session:
+        rows = (await session.execute(
+            select(Business.id, Business.name, Business.phone, Business.city, Business.scraped_at)
+            .order_by(Business.scraped_at.asc())
+        )).all()
+
+    seen_keys: dict[str, int] = {}
+    dup_ids: list[int] = []
+
+    for biz_id, name, phone, city, _ in rows:
+        nn = normalize_name(name)
+        np = normalize_phone(phone)
+        nc = normalize_name(city)
+        if not nn:
+            continue
+        key = f"{nn}|{np}" if np else f"{nn}|{nc}"
+        if key in seen_keys:
+            dup_ids.append(biz_id)
+        else:
+            seen_keys[key] = biz_id
+
+    console.print(f"\n[bold]Duplicate scan:[/bold] {len(rows)} total businesses, [red]{len(dup_ids)}[/red] duplicates found")
+
+    if not dup_ids:
+        console.print("[green]No duplicates to remove.[/green]\n")
+        return
+
+    if dry_run:
+        console.print(f"[dim]Dry run — would delete {len(dup_ids)} duplicate rows. Run without --dry-run to execute.[/dim]\n")
+        return
+
+    from src.models.audit import WebsiteAudit
+    from src.models.enrichment import EnrichmentData
+    from src.models.lifecycle import LeadLifecycle
+    from src.models.outreach import OutreachLog
+    from src.models.score import LeadScore
+    from src.models.triage import TriageResult
+
+    related_tables = [
+        ("outreach_log", OutreachLog),
+        ("lead_lifecycle", LeadLifecycle),
+        ("enrichment_data", EnrichmentData),
+        ("lead_scores", LeadScore),
+        ("website_audits", WebsiteAudit),
+        ("triage_results", TriageResult),
+    ]
+
+    async with async_session() as session:
+        BATCH = 500
+        for i in range(0, len(dup_ids), BATCH):
+            batch = dup_ids[i : i + BATCH]
+            for tbl_name, model in related_tables:
+                await session.execute(delete(model).where(model.business_id.in_(batch)))
+            await session.execute(delete(Business).where(Business.id.in_(batch)))
+            await session.commit()
+            console.print(f"  Deleted batch {i // BATCH + 1} ({len(batch)} rows + related data)")
+
+    console.print(f"\n[bold green]Done.[/bold green] Removed {len(dup_ids)} duplicate businesses and their related data.\n")
+    console.print("[dim]Run 'pipeline' to re-triage/score/enrich the remaining clean set.[/dim]\n")
 
 
 @cli.command("backfill-emails")
@@ -819,7 +1015,204 @@ async def _update_email(
                 update(EnrichmentData).where(EnrichmentData.business_id == biz.id).values(best_email=email)
             )
         await session.commit()
-        console.print(f"[green]Updated {biz.name} → email: {email}[/green]")
+        console.print(f"[green]Updated {biz.name} -> email: {email}[/green]")
+
+
+@cli.command("copy-local-to-supabase")
+@click.option(
+    "--source",
+    "source_url",
+    default="postgresql+asyncpg://nwsmedia:nwsmedia@localhost:5433/nwsmedia_leads",
+    envvar="SOURCE_DATABASE_URL",
+    help="Source DB URL (default: local Docker Postgres)",
+)
+@click.option("--dry-run", is_flag=True, help="Only print how many would be copied")
+def copy_local_to_supabase(source_url: str, dry_run: bool) -> None:
+    """Copy businesses from local Postgres into current DB (e.g. Supabase). Use if overnight scrape wrote to local."""
+    asyncio.run(_copy_local_to_supabase(source_url, dry_run))
+
+
+async def _copy_local_to_supabase(source_url: str, dry_run: bool) -> None:
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+    from src.config import settings
+    from src.database import async_session
+    from src.models.business import Business
+
+    target_url = settings.database_url
+    if source_url.replace("+asyncpg", "") == target_url.replace("+asyncpg", ""):
+        console.print("[yellow]Source and target URLs look the same. Use SOURCE_DATABASE_URL=... to set source.[/yellow]")
+        return
+
+    console.print(f"\n[bold]Copy businesses[/bold]")
+    console.print(f"  Source: [dim]{source_url.split('@')[-1] if '@' in source_url else source_url}[/dim]")
+    console.print(f"  Target: [dim]{target_url.split('@')[-1] if '@' in target_url else target_url}[/dim]\n")
+
+    source_engine = create_async_engine(
+        source_url,
+        echo=False,
+        pool_size=2,
+        max_overflow=0,
+    )
+    source_maker = async_sessionmaker(source_engine, class_=AsyncSession, expire_on_commit=False)
+
+    try:
+        async with source_maker() as src_session:
+            result = await src_session.execute(select(Business).order_by(Business.id))
+            from_source = result.scalars().all()
+    except Exception as e:
+        console.print(f"[red]Could not connect to source DB: {e}[/red]")
+        console.print("[dim]Is local Postgres running? docker compose up -d[/dim]")
+        return
+    finally:
+        await source_engine.dispose()
+
+    if not from_source:
+        console.print("[yellow]No businesses in source DB.[/yellow]")
+        return
+
+    console.print(f"  Found [green]{len(from_source)}[/green] businesses in source.")
+
+    async with async_session() as tgt_session:
+        existing_result = await tgt_session.execute(select(Business.place_id))
+        existing_place_ids = set(existing_result.scalars().all())
+
+    to_insert = [b for b in from_source if b.place_id not in existing_place_ids]
+    console.print(f"  Already in target: [dim]{len(from_source) - len(to_insert)}[/dim]")
+    console.print(f"  To copy: [green]{len(to_insert)}[/green]")
+
+    if dry_run:
+        console.print("\n[dim]Dry run. Run without --dry-run to copy.[/dim]")
+        return
+
+    if not to_insert:
+        console.print("\n[green]Nothing to copy.[/green]")
+        return
+
+    async with async_session() as tgt_session:
+        for i, b in enumerate(to_insert, 1):
+            record = Business(
+                place_id=b.place_id,
+                source_channel=b.source_channel or "google_maps",
+                name=b.name,
+                category=b.category,
+                address=b.address,
+                city=b.city,
+                state=b.state,
+                zip_code=b.zip_code,
+                phone=b.phone,
+                email=b.email,
+                website=b.website,
+                rating=b.rating,
+                review_count=b.review_count or 0,
+                photos_count=b.photos_count or 0,
+                latitude=b.latitude,
+                longitude=b.longitude,
+                hours=b.hours,
+                maps_url=b.maps_url,
+                scraped_at=b.scraped_at,
+                updated_at=b.updated_at,
+            )
+            tgt_session.add(record)
+            if i % 100 == 0:
+                await tgt_session.commit()
+                console.print(f"  Committed [dim]{i}[/dim] / {len(to_insert)}")
+        await tgt_session.commit()
+
+    console.print(f"\n[bold green]Done.[/bold green] Copied {len(to_insert)} businesses to target DB.\n")
+
+
+@cli.command("worker")
+@click.option("--concurrency", default=2, help="Number of concurrent worker processes")
+@click.option("--loglevel", default="info", help="Log level (debug, info, warning, error)")
+def worker(concurrency: int, loglevel: str) -> None:
+    """Start a Celery worker (runs pipeline tasks)."""
+    from src.celery_app import app as celery_app
+    from src.utils.logging import setup_logging
+
+    setup_logging(level=loglevel.upper(), json_output=True)
+    celery_app.worker_main([
+        "worker",
+        f"--concurrency={concurrency}",
+        f"--loglevel={loglevel}",
+        "--pool=solo",
+        "-n", "nwsmedia@%h",
+    ])
+
+
+@cli.command("beat")
+@click.option("--loglevel", default="info", help="Log level")
+def beat(loglevel: str) -> None:
+    """Start Celery Beat scheduler (triggers nightly pipeline + daily summary)."""
+    from src.celery_app import app as celery_app
+    from src.utils.logging import setup_logging
+
+    setup_logging(level=loglevel.upper(), json_output=True)
+    celery_app.Beat(loglevel=loglevel.upper()).run()
+
+
+@cli.command("trigger-pipeline")
+@click.option("--max-per-run", default=75, help="Max results per niche+location scrape")
+@click.option("--min-score", default=40, help="Min score for enrich/outreach")
+@click.option("--dry-run", is_flag=True, help="Don't actually send outreach")
+@click.option("--parallel", default=5, help="Number of parallel scrape browsers (default 5)")
+def trigger_pipeline(max_per_run: int, min_score: int, dry_run: bool, parallel: int) -> None:
+    """Manually dispatch the full pipeline as a Celery chain (requires worker running)."""
+    from src.tasks.pipeline import run_full_pipeline
+
+    result = run_full_pipeline.delay(
+        max_per_run=max_per_run,
+        min_score=min_score,
+        dry_run=dry_run,
+        parallel_scrapes=parallel,
+    )
+    console.print(f"[green]Pipeline dispatched.[/green] Task ID: {result.id}")
+    console.print("[dim]Monitor with: celery -A src.celery_app inspect active[/dim]")
+
+
+@cli.command("trigger-summary")
+def trigger_summary() -> None:
+    """Manually dispatch the daily summary email (requires worker running)."""
+    from src.tasks.summary import send_daily_summary
+
+    result = send_daily_summary.delay()
+    console.print(f"[green]Summary email dispatched.[/green] Task ID: {result.id}")
+
+
+@cli.command("test-summary-email")
+def test_summary_email() -> None:
+    """Send a test daily summary email now (no Celery). Checks SUMMARY_EMAIL_* in .env."""
+    import asyncio
+
+    from src.config import settings
+    from src.tasks.summary import _build_html, _gather_stats, _send_email
+
+    if not settings.summary_email_from or not settings.summary_email_password or not settings.summary_email_to:
+        console.print("[red]Missing SUMMARY_EMAIL_* in .env[/red]")
+        console.print("  Set SUMMARY_EMAIL_FROM, SUMMARY_EMAIL_PASSWORD, SUMMARY_EMAIL_TO")
+        return
+
+    console.print("[bold blue]Sending test daily summary email...[/bold blue]")
+    console.print(f"  From: {settings.summary_email_from}")
+    console.print(f"  To:   {settings.summary_email_to}\n")
+
+    try:
+        stats = asyncio.run(_gather_stats())
+        subject = (
+            f"[Test] Lead Engine Daily: {stats['new_businesses_24h']} new, "
+            f"{stats['outreach_24h']} sent, {stats['tier_hot']} HOT"
+        )
+        html = _build_html(stats)
+        sent = _send_email(subject, html)
+        if sent:
+            console.print("[green]Email sent successfully.[/green]")
+            console.print(f"  Check [bold]{settings.summary_email_to}[/bold] (and spam folder).")
+        else:
+            console.print("[red]Send failed (check logs above).[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise
 
 
 if __name__ == "__main__":

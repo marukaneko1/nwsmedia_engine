@@ -137,12 +137,14 @@ async def scrape_google_maps(
                 detail = await extract_detail_from_panel(page)
 
                 if detail.get("name"):
-                    # Fallback place_id: from href, or generate from name+address
                     if not detail.get("place_id"):
                         detail["place_id"] = listing.get("place_id_from_href")
                     if not detail.get("place_id"):
                         import hashlib
-                        fallback = f"{detail['name']}|{detail.get('address', '')}|{detail.get('phone', '')}"
+                        from src.scraper.deduplication import normalize_name, normalize_phone
+                        norm_name = normalize_name(detail["name"])
+                        norm_phone = normalize_phone(detail.get("phone"))
+                        fallback = f"{norm_name}|{norm_phone}"
                         detail["place_id"] = "gen:" + hashlib.md5(fallback.encode()).hexdigest()
 
                     addr_parts = parse_address_components(detail.get("address"))
@@ -181,14 +183,20 @@ async def scrape_google_maps(
 async def save_businesses(session, businesses: list[dict]) -> int:
     """Save scraped business dicts to the database, skipping duplicates.
 
+    Uses two-layer dedup: place_id match AND name+phone/name+city fuzzy match.
     Returns number of new records inserted.
     """
     from src.models.business import Business
-    from src.scraper.deduplication import deduplicate_results, get_existing_place_ids
+    from src.scraper.deduplication import (
+        deduplicate_results,
+        get_existing_name_keys,
+        get_existing_place_ids,
+    )
 
     place_ids = [b["place_id"] for b in businesses if b.get("place_id")]
-    existing = await get_existing_place_ids(session, place_ids)
-    unique = deduplicate_results(businesses, existing)
+    existing_pids = await get_existing_place_ids(session, place_ids)
+    existing_names = await get_existing_name_keys(session)
+    unique = deduplicate_results(businesses, existing_pids, existing_names)
 
     count = 0
     for biz in unique:

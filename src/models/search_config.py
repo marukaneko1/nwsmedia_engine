@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
+from src.utils.time import utcnow
 
 
 class SearchConfig(Base):
@@ -17,7 +18,7 @@ class SearchConfig(Base):
     max_results: Mapped[int] = mapped_column(Integer, default=200)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     def __repr__(self) -> str:
         return f"<SearchConfig(id={self.id}, niche='{self.niche}')>"

@@ -13,7 +13,7 @@ interface StatCardProps {
 
 export function StatCard({ title, value, delta, deltaLabel, icon, href }: StatCardProps) {
   const showDelta = delta !== undefined && delta !== null;
-  const isPositive = showDelta && delta >= 0;
+  const isPositive = showDelta && delta > 0;
   const isNegative = showDelta && delta < 0;
 
   const content = (

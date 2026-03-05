@@ -109,7 +109,7 @@ export default async function OutreachPage() {
           {dataError}
         </div>
       )}
-      <main className="p-6 max-w-[1400px] space-y-6">
+      <main className="w-full space-y-6 p-6">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Card>
             <CardContent className="p-4">

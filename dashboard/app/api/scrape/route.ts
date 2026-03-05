@@ -1,8 +1,26 @@
 import { type ChildProcess, spawn } from "child_process";
 import path from "path";
+import { existsSync, readFileSync } from "fs";
+import { invalidateCache } from "@/lib/queries";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** Resolve repo root (where run.py and .venv live). Next dev often runs with cwd = workspace root. */
+function getProjectRoot(): string {
+  const cwd = process.cwd();
+  const fromDashboard = path.basename(cwd) === "dashboard";
+  return fromDashboard ? path.resolve(cwd, "..") : cwd;
+}
+
+/** Cross-platform path to venv Python (Windows: Scripts/python.exe, Unix: bin/python). */
+function getPythonPath(projectRoot: string): string {
+  const isWin = process.platform === "win32";
+  const rel = isWin
+    ? path.join(".venv", "Scripts", "python.exe")
+    : path.join(".venv", "bin", "python");
+  return path.join(projectRoot, rel);
+}
 
 const ALLOWED_COMMANDS = new Set([
   "scrape",
@@ -15,6 +33,7 @@ const ALLOWED_COMMANDS = new Set([
   "backfill-emails",
   "generate-pdfs",
   "rescore",
+  "dedup",
 ]);
 
 const stripAnsi = (text: string) =>
@@ -22,10 +41,28 @@ const stripAnsi = (text: string) =>
 
 const g = globalThis as unknown as { __scrapeProc?: ChildProcess };
 
-function buildChildEnv() {
+/** Parse KEY=VALUE from repo root .env; return value for KEY or undefined. */
+function readEnvFromRoot(projectRoot: string, key: string): string | undefined {
+  const envPath = path.join(projectRoot, ".env");
+  if (!existsSync(envPath)) return undefined;
+  try {
+    const content = readFileSync(envPath, "utf-8");
+    const line = content
+      .split(/\r?\n/)
+      .find((l) => l.startsWith(key + "=") && !l.trimStart().startsWith("#"));
+    if (!line) return undefined;
+    const raw = line.slice(key.length + 1).trim();
+    if (raw.startsWith('"') && raw.endsWith('"')) return raw.slice(1, -1).replace(/\\"/g, '"');
+    if (raw.startsWith("'") && raw.endsWith("'")) return raw.slice(1, -1).replace(/\\'/g, "'");
+    return raw;
+  } catch {
+    return undefined;
+  }
+}
+
+function buildChildEnv(projectRoot: string) {
   const inherited = { ...process.env };
   const exclude = [
-    "DATABASE_URL",
     "SUPABASE_ANON_KEY",
     "GMAIL_USER",
     "GMAIL_APP_PASSWORD",
@@ -37,16 +74,21 @@ function buildChildEnv() {
   for (const key of Object.keys(inherited)) {
     if (key.startsWith("NEXT_PUBLIC_")) delete inherited[key];
   }
+  // Ensure Python uses same DB as repo root .env (dashboard may not have DATABASE_URL)
+  let dbUrl = inherited.DATABASE_URL ?? process.env.DATABASE_URL ?? readEnvFromRoot(projectRoot, "DATABASE_URL");
+  if (dbUrl && dbUrl.startsWith("postgresql://") && !dbUrl.includes("+asyncpg")) {
+    dbUrl = dbUrl.replace("postgresql://", "postgresql+asyncpg://", 1);
+  }
+  if (dbUrl) inherited.DATABASE_URL = dbUrl;
   return {
     ...inherited,
     PYTHONUNBUFFERED: "1",
+    PYTHONIOENCODING: "utf-8",
     NO_COLOR: "1",
     TERM: "dumb",
     COLUMNS: "120",
   };
 }
-
-const env = buildChildEnv();
 
 function runProcess(
   projectRoot: string,
@@ -56,6 +98,7 @@ function runProcess(
   args: string[],
   send: (type: string, payload: Record<string, unknown>) => void
 ): Promise<number> {
+  const env = buildChildEnv(projectRoot);
   return new Promise((resolve, reject) => {
     const proc = spawn(pythonPath, ["-u", runScript, command, ...args], {
       cwd: projectRoot,
@@ -81,8 +124,13 @@ function runProcess(
 }
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const { command, args } = body as { command: string; args: string[] };
+  let body: { command: string; args: string[] };
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+  const { command, args } = body;
 
   const isAuto = command === "auto";
   if (!ALLOWED_COMMANDS.has(command) && !isAuto) {
@@ -94,9 +142,22 @@ export async function POST(request: Request) {
     g.__scrapeProc = undefined;
   }
 
-  const projectRoot = path.resolve(process.cwd(), "..");
-  const pythonPath = path.join(projectRoot, ".venv", "bin", "python");
+  const projectRoot = getProjectRoot();
+  const pythonPath = getPythonPath(projectRoot);
   const runScript = path.join(projectRoot, "run.py");
+
+  if (!existsSync(runScript)) {
+    return Response.json(
+      { error: `run.py not found at ${runScript}. Run the scraper from the repo root or dashboard.` },
+      { status: 400 }
+    );
+  }
+  if (!existsSync(pythonPath)) {
+    return Response.json(
+      { error: `Python not found at ${pythonPath}. Create a venv: python -m venv .venv` },
+      { status: 400 }
+    );
+  }
 
   const sanitized = (args ?? []).map((a) => String(a));
 
@@ -116,81 +177,89 @@ export async function POST(request: Request) {
         }
       };
 
-      if (isAuto) {
-        const dryRun = sanitized.includes("--dry-run");
-        const steps = dryRun ? ["scrape-batch"] : ["scrape-batch", "pipeline"];
-        const totalSteps = steps.length;
-        send("start", { command: "auto", steps });
+      try {
+        if (isAuto) {
+          const dryRun = sanitized.includes("--dry-run");
+          const steps = dryRun ? ["scrape-batch"] : ["scrape-batch", "pipeline"];
+          const totalSteps = steps.length;
+          send("start", { command: "auto", steps });
 
-        send("step", { step: 1, total: totalSteps, command: "scrape-batch" });
-        const batchCode = await runProcess(
-          projectRoot,
-          pythonPath,
-          runScript,
-          "scrape-batch",
-          sanitized,
-          send
-        );
+          send("step", { step: 1, total: totalSteps, command: "scrape-batch" });
+          const batchCode = await runProcess(
+            projectRoot,
+            pythonPath,
+            runScript,
+            "scrape-batch",
+            sanitized,
+            send
+          );
 
-        if (cancelled) {
+          if (cancelled) {
+            controller.close();
+            return;
+          }
+          if (batchCode !== 0) {
+            send("exit", { code: batchCode });
+            controller.close();
+            return;
+          }
+
+          if (dryRun) {
+            send("exit", { code: 0 });
+            controller.close();
+            return;
+          }
+
+          send("step", { step: 2, total: totalSteps, command: "pipeline" });
+          const pipelineCode = await runProcess(
+            projectRoot,
+            pythonPath,
+            runScript,
+            "pipeline",
+            [],
+            send
+          );
+
+          if (cancelled) {
+            controller.close();
+            return;
+          }
+          invalidateCache();
+          send("exit", { code: pipelineCode });
           controller.close();
           return;
         }
-        if (batchCode !== 0) {
-          send("exit", { code: batchCode });
-          controller.close();
-          return;
-        }
 
-        if (dryRun) {
-          send("exit", { code: 0 });
-          controller.close();
-          return;
-        }
+        const proc = spawn(pythonPath, ["-u", runScript, command, ...sanitized], {
+          cwd: projectRoot,
+          env: buildChildEnv(projectRoot),
+        });
+        g.__scrapeProc = proc;
 
-        send("step", { step: 2, total: totalSteps, command: "pipeline" });
-        const pipelineCode = await runProcess(
-          projectRoot,
-          pythonPath,
-          runScript,
-          "pipeline",
-          [],
-          send
-        );
+        send("start", { command, args: sanitized, pid: proc.pid });
 
-        if (cancelled) {
+        proc.stdout?.on("data", (chunk: Buffer) => {
+          send("stdout", { text: stripAnsi(chunk.toString()) });
+        });
+        proc.stderr?.on("data", (chunk: Buffer) => {
+          send("stderr", { text: stripAnsi(chunk.toString()) });
+        });
+        proc.on("close", (code) => {
+          if (g.__scrapeProc?.pid === proc.pid) g.__scrapeProc = undefined;
+          invalidateCache();
+          send("exit", { code: code ?? 0 });
           controller.close();
-          return;
-        }
-        send("exit", { code: pipelineCode });
+        });
+        proc.on("error", (err) => {
+          if (g.__scrapeProc?.pid === proc.pid) g.__scrapeProc = undefined;
+          send("error", { message: err.message });
+          controller.close();
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        send("error", { message });
         controller.close();
-        return;
       }
-
-      const proc = spawn(pythonPath, ["-u", runScript, command, ...sanitized], {
-        cwd: projectRoot,
-        env,
-      });
-      g.__scrapeProc = proc;
-
-      send("start", { command, args: sanitized, pid: proc.pid });
-
-      proc.stdout?.on("data", (chunk: Buffer) => {
-        send("stdout", { text: stripAnsi(chunk.toString()) });
-      });
-      proc.stderr?.on("data", (chunk: Buffer) => {
-        send("stderr", { text: stripAnsi(chunk.toString()) });
-      });
-      proc.on("close", (code) => {
-        if (g.__scrapeProc?.pid === proc.pid) g.__scrapeProc = undefined;
-        send("exit", { code: code ?? 0 });
-        controller.close();
-      });
-      proc.on("error", (err) => {
-        if (g.__scrapeProc?.pid === proc.pid) g.__scrapeProc = undefined;
-        send("error", { message: err.message });
-        controller.close();
-      });
     },
     cancel() {
       cancelled = true;

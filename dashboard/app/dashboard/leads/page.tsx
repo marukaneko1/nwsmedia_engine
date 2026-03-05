@@ -39,7 +39,7 @@ export default async function LeadsPage() {
         </div>
       )}
       <main className="p-6">
-        <Suspense>
+        <Suspense fallback={<div className="py-8 text-center text-muted-foreground">Loading leads...</div>}>
           <LeadsTableClient
             initialLeads={leads}
             initialTotal={total}

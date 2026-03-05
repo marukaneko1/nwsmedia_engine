@@ -15,8 +15,7 @@ export default function PricingPage() {
   return (
     <>
       <Header title="Pricing Reference" />
-      <main className="p-6 max-w-[1400px] space-y-8">
-
+      <main className="w-full space-y-8 p-6">
         {/* Client Price Calculator */}
         <ClientPriceCalculator />
 
@@ -269,7 +268,6 @@ export default function PricingPage() {
             </Table>
           </CardContent>
         </Card>
-
       </main>
     </>
   );

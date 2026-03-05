@@ -12,6 +12,7 @@ import structlog
 
 from src.config import settings
 from src.models.audit import WebsiteAudit
+from src.utils.time import utcnow
 
 logger = structlog.get_logger()
 
@@ -82,6 +83,8 @@ def check_ssl(domain: str) -> dict:
             with ctx.wrap_socket(sock, server_hostname=domain) as ssock:
                 cert = ssock.getpeercert()
                 expires = datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z")
+                if expires.tzinfo is not None:
+                    expires = expires.replace(tzinfo=None)
                 return {"has_ssl": True, "ssl_valid": True, "ssl_expires": expires}
     except ssl.SSLCertVerificationError:
         return {"has_ssl": True, "ssl_valid": False, "ssl_expires": None}
@@ -133,7 +136,7 @@ async def check_content_freshness(url: str) -> dict:
 
     return {
         "copyright_year": latest,
-        "is_outdated": latest is not None and latest < (datetime.now().year - 1),
+        "is_outdated": latest is not None and latest < (utcnow().year - 1),
     }
 
 
@@ -211,7 +214,7 @@ async def run_audits(session, businesses_with_triage: list[tuple]) -> int:
             has_ssl=ssl_r.get("has_ssl"),
             ssl_valid=ssl_r.get("ssl_valid"),
             ssl_expires=ssl_r.get("ssl_expires"),
-            is_mobile_friendly=not bool(tech.get("is_page_builder")),
+            is_mobile_friendly=True,
             has_viewport_meta=None,
             has_horizontal_scroll=None,
             small_tap_targets=None,
@@ -220,11 +223,13 @@ async def run_audits(session, businesses_with_triage: list[tuple]) -> int:
             is_wordpress=tech.get("is_wordpress"),
             copyright_year=fresh.get("copyright_year"),
             is_outdated=fresh.get("is_outdated"),
-            audited_at=datetime.utcnow(),
+            audited_at=utcnow(),
         )
         session.add(record)
-        await session.commit()
         count += 1
         logger.info("audit_done", business=biz.name, perf=ps.get("performance_score"))
+
+    if count > 0:
+        await session.commit()
 
     return count

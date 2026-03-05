@@ -47,11 +47,11 @@ export default async function DashboardOverviewPage() {
     <>
       <Header title="Overview" />
       {dataError && (
-        <div className="mx-6 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+        <div className="mx-6 mt-4 shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
           {dataError}
         </div>
       )}
-      <main className="max-w-[1400px] space-y-6 p-6">
+      <main className="w-full space-y-6 p-6">
         <KpiCards kpis={kpis} />
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
