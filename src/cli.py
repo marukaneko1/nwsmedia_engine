@@ -79,9 +79,10 @@ async def _scrape(niche: str, location: str, max_results: int, headless: bool) -
 @click.option("--max-per-run", default=75, help="Max results per niche+location (default 75)")
 @click.option("--headless/--no-headless", default=True, help="Run browser headless")
 @click.option("--dry-run", is_flag=True, help="Only print what would be run, do not scrape")
-def scrape_batch(max_per_run: int, headless: bool, dry_run: bool) -> None:
+@click.option("--limit", default=0, type=int, help="Max number of niche+location runs (0 = all)")
+def scrape_batch(max_per_run: int, headless: bool, dry_run: bool, limit: int) -> None:
     """Run scrapes for all target niches and cities (Phase 1 launch config)."""
-    asyncio.run(_scrape_batch(max_per_run, headless, dry_run))
+    asyncio.run(_scrape_batch(max_per_run, headless, dry_run, limit))
 
 
 # Shared location pools — keeps configs DRY and easy to expand
@@ -237,7 +238,7 @@ BATCH_SEARCH_CONFIGS = [
 ]
 
 
-async def _scrape_batch(max_per_run: int, headless: bool, dry_run: bool) -> None:
+async def _scrape_batch(max_per_run: int, headless: bool, dry_run: bool, limit: int = 0) -> None:
     from src.database import async_session
     from src.scraper.google_maps import save_businesses, scrape_google_maps
 
@@ -245,6 +246,9 @@ async def _scrape_batch(max_per_run: int, headless: bool, dry_run: bool) -> None
     for cfg in BATCH_SEARCH_CONFIGS:
         for loc in cfg["locations"]:
             pairs.append((cfg["niche"], loc))
+
+    if limit > 0:
+        pairs = pairs[:limit]
 
     console.print(f"\n[bold blue]Batch scrape[/bold blue] — {len(pairs)} runs ({max_per_run} results each)")
     if dry_run:
@@ -275,6 +279,139 @@ async def _scrape_batch(max_per_run: int, headless: bool, dry_run: bool) -> None
             continue
 
     console.print(f"\n[bold green]Batch complete.[/bold green] Total new saved: {total_saved}\n")
+
+
+# ── Craigslist Scraper ──────────────────────────────────────────────
+
+from src.scraper.craigslist.urls import CL_CATEGORY_CODES, CL_CITY_MAP
+
+CL_BATCH_SEARCH_CONFIGS = [
+    {"category": "bbb", "keywords": [
+        "landscaping", "painting", "cleaning", "plumbing", "roofing",
+        "electrical", "handyman", "pressure washing", "tree service",
+        "junk removal", "fencing", "concrete", "HVAC",
+    ]},
+    {"category": "hss", "keywords": [None]},
+    {"category": "sks", "keywords": [None]},
+    {"category": "fgs", "keywords": [None]},
+]
+
+
+@cli.command("scrape-craigslist")
+@click.option("--city", required=True, help='City (e.g. "Austin, TX") — must be in CL_CITY_MAP')
+@click.option("--category", default="bbb", help="CL category code (default bbb = all services)")
+@click.option("--keyword", default=None, help="Search keyword filter")
+@click.option("--max-pages", default=3, help="Max pagination pages (default 3)")
+@click.option("--headless/--no-headless", default=True, help="Run browser headless")
+def scrape_craigslist_cmd(city: str, category: str, keyword: str | None, max_pages: int, headless: bool) -> None:
+    """Scrape Craigslist services listings for a city."""
+    asyncio.run(_scrape_craigslist(city, category, keyword, max_pages, headless))
+
+
+async def _scrape_craigslist(city: str, category: str, keyword: str | None, max_pages: int, headless: bool) -> None:
+    from src.database import async_session
+    from src.scraper.craigslist import save_cl_businesses, scrape_craigslist
+
+    cat_label = CL_CATEGORY_CODES.get(category, category)
+    console.print(f"\n[bold blue]Scraping Craigslist Services[/bold blue]")
+    console.print(f"  City:     {city}")
+    console.print(f"  Category: {category} ({cat_label})")
+    console.print(f"  Keyword:  {keyword or '(none)'}")
+    console.print(f"  Pages:    {max_pages}\n")
+
+    businesses = await scrape_craigslist(
+        city=city,
+        category=category,
+        keyword=keyword,
+        max_pages=max_pages,
+        headless=headless,
+    )
+
+    console.print(f"\n[green]Found {len(businesses)} listings[/green]")
+
+    if businesses:
+        async with async_session() as session:
+            saved = await save_cl_businesses(session, businesses)
+            console.print(f"[green]Saved {saved} new businesses to database[/green]")
+
+        table = Table(title="Sample Craigslist Results (first 10)")
+        table.add_column("Name", style="cyan", max_width=32)
+        table.add_column("Category")
+        table.add_column("City")
+        table.add_column("Phone")
+        table.add_column("Email", max_width=28)
+        table.add_column("Website", max_width=28)
+
+        for biz in businesses[:10]:
+            table.add_row(
+                biz.get("name", "")[:32],
+                biz.get("category", ""),
+                biz.get("city", ""),
+                biz.get("phone", "") or "",
+                (biz.get("email") or "")[:28],
+                (biz.get("website") or "")[:28],
+            )
+        console.print(table)
+
+
+@cli.command("scrape-craigslist-batch")
+@click.option("--max-pages", default=3, help="Max pages per city+category+keyword combo")
+@click.option("--headless/--no-headless", default=True, help="Run browser headless")
+@click.option("--dry-run", is_flag=True, help="Only print what would be run, do not scrape")
+@click.option("--limit", default=0, type=int, help="Max number of runs (0 = all)")
+@click.option("--offset", default=0, type=int, help="Skip the first N runs")
+def scrape_craigslist_batch_cmd(max_pages: int, headless: bool, dry_run: bool, limit: int, offset: int) -> None:
+    """Run CL scrapes for all configured cities, categories, and keywords."""
+    asyncio.run(_scrape_craigslist_batch(max_pages, headless, dry_run, limit, offset))
+
+
+async def _scrape_craigslist_batch(max_pages: int, headless: bool, dry_run: bool, limit: int = 0, offset: int = 0) -> None:
+    from src.database import async_session
+    from src.scraper.craigslist import save_cl_businesses, scrape_craigslist
+
+    pairs: list[tuple[str, str, str | None]] = []
+    for city in CL_CITY_MAP:
+        for cfg in CL_BATCH_SEARCH_CONFIGS:
+            for kw in cfg["keywords"]:
+                pairs.append((city, cfg["category"], kw))
+
+    if offset > 0:
+        pairs = pairs[offset:]
+    if limit > 0:
+        pairs = pairs[:limit]
+
+    console.print(f"\n[bold blue]Craigslist Batch Scrape[/bold blue] — {len(pairs)} runs ({max_pages} pages each)")
+    if dry_run:
+        for i, (city, cat, kw) in enumerate(pairs, 1):
+            kw_label = kw or "(no keyword)"
+            console.print(f"  {i}. {city} / {cat} / {kw_label}")
+        console.print(f"\n[dim]Run without --dry-run to execute.[/dim]\n")
+        return
+
+    total_saved = 0
+    for i, (city, category, keyword) in enumerate(pairs, 1):
+        kw_label = keyword or "(no keyword)"
+        console.print(f"\n[bold]Run {i}/{len(pairs)}:[/bold] {city} / {category} / {kw_label}")
+        try:
+            businesses = await scrape_craigslist(
+                city=city,
+                category=category,
+                keyword=keyword,
+                max_pages=max_pages,
+                headless=headless,
+            )
+            if businesses:
+                async with async_session() as session:
+                    saved = await save_cl_businesses(session, businesses)
+                    total_saved += saved
+                    console.print(f"  [green]Saved {saved} new[/green] (found {len(businesses)})")
+            else:
+                console.print("  [dim]No listings returned[/dim]")
+        except Exception as e:
+            console.print(f"  [red]Error: {e}[/red]")
+            continue
+
+    console.print(f"\n[bold green]CL Batch complete.[/bold green] Total new saved: {total_saved}\n")
 
 
 @cli.command()
@@ -596,7 +733,7 @@ async def _outreach(min_score: int, max_leads: int | None, dry_run: bool, campai
 
     async with async_session() as session:
         already_sent = {r[0] for r in (await session.execute(
-            select(OutreachLog.business_id).where(OutreachLog.source_channel == "google_maps")
+            select(OutreachLog.business_id)
         )).all()}
 
         stmt = (

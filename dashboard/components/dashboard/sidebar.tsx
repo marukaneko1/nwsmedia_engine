@@ -14,6 +14,9 @@ import {
   Radar,
   Zap,
   FileDown,
+  Megaphone,
+  ClipboardList,
+  PhoneCall,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,14 +24,17 @@ import { cn } from "@/lib/utils";
 const navItems: { name: string; href: string; icon: LucideIcon }[] = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "Scraper", href: "/dashboard/scraper", icon: Radar },
+  { name: "Craigslist", href: "/dashboard/craigslist", icon: Megaphone },
   { name: "Pipeline", href: "/dashboard/pipeline", icon: Kanban },
   { name: "Leads", href: "/dashboard/leads", icon: Users },
+  { name: "CL Leads", href: "/dashboard/craigslist-leads", icon: ClipboardList },
   { name: "Emails Found", href: "/dashboard/emails", icon: Mail },
   { name: "Blast Email", href: "/dashboard/blast", icon: Zap },
   { name: "Outreach Sent", href: "/dashboard/outreach", icon: Send },
   { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Export", href: "/dashboard/export", icon: FileDown },
   { name: "Pricing", href: "/dashboard/pricing", icon: DollarSign },
+  { name: "Voice Agent", href: "/dashboard/voice-agent", icon: PhoneCall },
 ];
 
 export function Sidebar() {

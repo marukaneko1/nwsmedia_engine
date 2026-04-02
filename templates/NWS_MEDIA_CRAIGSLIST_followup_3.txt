@@ -1,0 +1,16 @@
+Subject: still interested or should I move on?
+
+{{ first_name }},
+
+I've sent a couple of notes about getting {{ company_name }} off Craigslist and onto Google. Totally get it if you're slammed — running a {{ category }} business doesn't leave a lot of downtime.
+
+Just want to know where you're at:
+
+A) "Yeah let's talk" → grab a time here: https://calendly.com/shunya-nwsmedia/30min
+B) "Not right now" → just reply "later" and I'll circle back in a few months
+C) "Not interested" → reply "pass" and I'll close your file, zero hard feelings
+
+Either way — the fact that you're out there hustling on Craigslist says a lot. {{ company_name }} is clearly the real deal.
+
+All the best,
+NWS MEDIA

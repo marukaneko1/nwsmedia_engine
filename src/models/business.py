@@ -31,6 +31,8 @@ class Business(Base):
     longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7))
     hours: Mapped[dict | None] = mapped_column(JSONB)
     maps_url: Mapped[str | None] = mapped_column(Text)
+    source_url: Mapped[str | None] = mapped_column(Text)
+    listing_description: Mapped[str | None] = mapped_column(Text)
     scraped_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 

@@ -338,7 +338,7 @@ async def queue_lead(
 
     record = OutreachLog(
         business_id=business.id,
-        source_channel="google_maps",
+        source_channel=business.source_channel or "google_maps",
         outreach_type="email",
         segment=score_row.segment if score_row else None,
         email_sent_to=email,
@@ -377,7 +377,6 @@ async def run_outreach(
         existing = (await session.execute(
             select(OutreachLog).where(
                 OutreachLog.business_id == biz.id,
-                OutreachLog.source_channel == "google_maps",
                 OutreachLog.status != "dry_run",
             )
         )).scalar_one_or_none()

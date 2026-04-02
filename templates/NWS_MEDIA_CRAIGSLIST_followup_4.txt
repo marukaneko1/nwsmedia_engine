@@ -1,0 +1,14 @@
+Subject: closing {{ company_name }}'s file
+
+{{ first_name }},
+
+Last email from me.
+
+I still think {{ company_name }} has a ton of untapped potential. You're doing the hard part — the work, the reputation, the hustle. A website that ranks on Google would mean customers come to you instead of you chasing them on classifieds.
+
+If you ever want to revisit this, just reply to this thread. I'll have everything saved and can pick it right back up.
+
+Wishing you and {{ company_name }} nothing but growth.
+
+All the best,
+NWS MEDIA

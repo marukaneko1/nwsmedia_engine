@@ -1,8 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import { Download, Copy, Check, FileSpreadsheet, Filter } from "lucide-react";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { Download, Copy, Check, FileSpreadsheet, Filter, Calendar } from "lucide-react";
 import type { LeadWithDetails } from "@/types/database";
+
+const BASELINE_KEY = "nwsmedia_export_max_id";
+
+function getStoredMaxId(): number {
+  if (typeof window === "undefined") return 0;
+  const v = localStorage.getItem(BASELINE_KEY);
+  return v ? Number(v) : 0;
+}
+
+function setStoredMaxId(maxId: number): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(BASELINE_KEY, String(maxId));
+}
 
 interface ExportPanelProps {
   leads: LeadWithDetails[];
@@ -60,6 +73,7 @@ function buildCsv(leads: LeadWithDetails[], columns: ColumnKey[]): string {
 
 type FilterTier = "" | "HOT" | "WARM" | "COOL" | "COLD";
 type FilterEmail = "" | "yes" | "no";
+type ExportScope = "all" | "new";
 
 export function ExportPanel({ leads, total }: ExportPanelProps) {
   const [selectedCols, setSelectedCols] = useState<Set<ColumnKey>>(
@@ -69,11 +83,35 @@ export function ExportPanel({ leads, total }: ExportPanelProps) {
   const [downloaded, setDownloaded] = useState(false);
   const [tierFilter, setTierFilter] = useState<FilterTier>("");
   const [emailFilter, setEmailFilter] = useState<FilterEmail>("");
+  const [exportScope, setExportScope] = useState<ExportScope>("all");
+  const [maxExportedId, setMaxExportedId] = useState<number>(0);
+  const [baselineSet, setBaselineSet] = useState(false);
+
+  const currentMaxId = useMemo(() => {
+    if (leads.length === 0) return 0;
+    return Math.max(...leads.map((l) => l.id));
+  }, [leads]);
+
+  useEffect(() => {
+    setMaxExportedId(getStoredMaxId());
+  }, []);
+
+  const markCurrentAsExported = useCallback(() => {
+    setStoredMaxId(currentMaxId);
+    setMaxExportedId(currentMaxId);
+    setExportScope("new");
+    setBaselineSet(true);
+    setTimeout(() => setBaselineSet(false), 3000);
+  }, [currentMaxId]);
 
   const filteredLeads = leads.filter((l) => {
     if (tierFilter && l.tier !== tierFilter) return false;
     if (emailFilter === "yes" && !l.best_email) return false;
     if (emailFilter === "no" && l.best_email) return false;
+    if (exportScope === "new") {
+      if (maxExportedId <= 0) return false;
+      if (l.id <= maxExportedId) return false;
+    }
     return true;
   });
 
@@ -105,6 +143,9 @@ export function ExportPanel({ leads, total }: ExportPanelProps) {
     a.download = `leads_export_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    const exportedMax = filteredLeads.length > 0 ? Math.max(...filteredLeads.map((l) => l.id)) : currentMaxId;
+    setStoredMaxId(exportedMax);
+    setMaxExportedId(exportedMax);
     setDownloaded(true);
     setTimeout(() => setDownloaded(false), 2000);
   };
@@ -138,6 +179,9 @@ export function ExportPanel({ leads, total }: ExportPanelProps) {
       return fields.join("\t");
     });
     await navigator.clipboard.writeText(tsvRows.join("\n"));
+    const exportedMax = filteredLeads.length > 0 ? Math.max(...filteredLeads.map((l) => l.id)) : currentMaxId;
+    setStoredMaxId(exportedMax);
+    setMaxExportedId(exportedMax);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -171,6 +215,39 @@ export function ExportPanel({ leads, total }: ExportPanelProps) {
           </div>
 
           <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Export scope</label>
+              <select
+                value={exportScope}
+                onChange={(e) => setExportScope(e.target.value as ExportScope)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+              >
+                <option value="all">All leads</option>
+                <option value="new">New since last export</option>
+              </select>
+              {exportScope === "new" && (
+                <div className="mt-2 space-y-2">
+                  {maxExportedId <= 0 ? (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      Click &quot;Mark all current as exported&quot; to set the baseline. Only leads added after this point will appear.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Last exported up to lead #{maxExportedId.toLocaleString()} &middot;{" "}
+                      {filteredLeads.length.toLocaleString()} new lead{filteredLeads.length !== 1 ? "s" : ""}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={markCurrentAsExported}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-accent"
+                  >
+                    <Calendar className="size-3.5" />
+                    {baselineSet ? "Done! Baseline updated" : "Mark all current as exported"}
+                  </button>
+                </div>
+              )}
+            </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Tier</label>
               <select

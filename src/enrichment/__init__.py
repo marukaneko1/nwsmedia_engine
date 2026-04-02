@@ -206,8 +206,14 @@ async def enrich_lead(business) -> dict:
     return result
 
 
+ENRICHMENT_BATCH_SIZE = 25
+
+
 async def run_enrichment(session, businesses: list, min_score: int = 40) -> dict:
     """Enrich a list of Business ORM objects. Saves to enrichment_data.
+
+    Commits every ENRICHMENT_BATCH_SIZE leads so the DB connection doesn't go
+    stale during long runs (Supabase PgBouncer drops idle connections after ~60s).
 
     Args:
         session: SQLAlchemy async session.
@@ -220,6 +226,7 @@ async def run_enrichment(session, businesses: list, min_score: int = 40) -> dict
     from sqlalchemy import select
 
     counts = {"enriched": 0, "no_email": 0, "skipped": 0, "hunter_used": 0}
+    pending = 0
 
     for biz in businesses:
         existing = (await session.execute(
@@ -242,6 +249,7 @@ async def run_enrichment(session, businesses: list, min_score: int = 40) -> dict
             enriched_at=utcnow(),
         )
         session.add(record)
+        pending += 1
 
         if data["source"] == "hunter":
             counts["hunter_used"] += 1
@@ -253,5 +261,10 @@ async def run_enrichment(session, businesses: list, min_score: int = 40) -> dict
             counts["no_email"] += 1
             logger.info("enriched_no_email", business=biz.name, socials=len(data["social_profiles"]))
 
-    await session.commit()
+        if pending >= ENRICHMENT_BATCH_SIZE:
+            await session.commit()
+            pending = 0
+
+    if pending > 0:
+        await session.commit()
     return counts

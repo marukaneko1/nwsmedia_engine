@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     lob_api_key_test: str = ""
     instantly_campaign_id_llc: str = ""
 
+    # Channel 3: Craigslist Services
+    craigslist_max_pages: int = 3
+    craigslist_delay_min: float = 3.0
+    craigslist_delay_max: float = 8.0
+    craigslist_page_delay_min: float = 5.0
+    craigslist_page_delay_max: float = 15.0
+    craigslist_session_rotate_every: int = 20
+    instantly_campaign_id_craigslist: str = ""
+
     # Daily summary email (Phase 4)
     summary_email_from: str = ""
     summary_email_password: str = ""

@@ -29,6 +29,28 @@ TECH_SIGNATURES = {
 }
 
 
+async def is_pagespeed_available() -> bool:
+    """Return True if PageSpeed API key is set and accepted (not 401/403). Used to skip audit when key is broken."""
+    key = (getattr(settings, "google_pagespeed_api_key", None) or "").strip()
+    if not key:
+        logger.warning("pagespeed_skipped", reason="no_api_key")
+        return False
+    try:
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(
+                PAGESPEED_API,
+                params={"url": "https://example.com", "key": key, "strategy": "mobile"},
+            ) as resp:
+                if resp.status in (401, 403):
+                    logger.warning("pagespeed_skipped", reason="key_rejected", status=resp.status)
+                    return False
+                return resp.status == 200
+    except Exception as e:
+        logger.warning("pagespeed_skipped", reason="probe_failed", error=str(e))
+        return False
+
+
 async def run_pagespeed(url: str) -> dict:
     """Call Google PageSpeed Insights API."""
     params = {
@@ -165,6 +187,8 @@ async def full_audit(url: str) -> dict:
 
 async def run_audits(session, businesses_with_triage: list[tuple]) -> int:
     """Audit businesses that have HAS_WEBSITE triage status.
+    Skips all audits when PageSpeed API key is missing or returns 403/401,
+    so the pipeline can continue (scoring and enrichment work without audit data).
 
     Args:
         session: SQLAlchemy async session.
@@ -174,6 +198,17 @@ async def run_audits(session, businesses_with_triage: list[tuple]) -> int:
         Number of audits completed.
     """
     from sqlalchemy import select
+
+    if not (getattr(settings, "google_pagespeed_api_key", None) or "").strip():
+        logger.warning("pagespeed_skipped", reason="no_api_key", message="Skipping audits; pipeline continues without PageSpeed metrics.")
+        return 0
+    if not await is_pagespeed_available():
+        logger.warning(
+            "pagespeed_skipped",
+            reason="key_invalid_or_restricted",
+            message="PageSpeed API key rejected (403/401). Skipping audits; pipeline continues without PageSpeed metrics.",
+        )
+        return 0
 
     count = 0
     for biz, triage in businesses_with_triage:
@@ -229,7 +264,10 @@ async def run_audits(session, businesses_with_triage: list[tuple]) -> int:
         count += 1
         logger.info("audit_done", business=biz.name, perf=ps.get("performance_score"))
 
-    if count > 0:
+        if count % 25 == 0:
+            await session.commit()
+
+    if count % 25 != 0:
         await session.commit()
 
     return count

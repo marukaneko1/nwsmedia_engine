@@ -76,29 +76,30 @@ export default async function BlastPage() {
       outreachCountMap[o.business_id] = (outreachCountMap[o.business_id] ?? 0) + 1;
     }
 
-    leads = ids
-    .map((id) => {
-      const biz = bizMap[id];
-      const enrich = enrichMap[id];
-      if (!biz || !enrich?.best_email) return null;
-      return {
-        id: biz.id,
-        name: biz.name,
-        category: biz.category,
-        city: biz.city,
-        email: enrich.best_email,
-        rating: biz.rating,
-        review_count: biz.review_count,
-        triage_status: triageMap[id]?.status ?? null,
-        score: scoreMap[id]?.score ?? null,
-        tier: scoreMap[id]?.tier ?? null,
-        pipeline_status: lifecycleMap[id] ?? null,
-        outreach_count: outreachCountMap[id] ?? 0,
-        favorited: favSet.has(id),
-      };
-    })
-    .filter((l): l is BlastLead => l !== null)
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    const mapped = ids
+      .map((id) => {
+        const biz = bizMap[id];
+        const enrich = enrichMap[id];
+        if (!biz || !enrich?.best_email) return null;
+        return {
+          id: biz.id,
+          name: biz.name,
+          category: biz.category,
+          city: biz.city,
+          email: enrich.best_email,
+          rating: biz.rating,
+          review_count: biz.review_count,
+          triage_status: triageMap[id]?.status ?? null,
+          score: scoreMap[id]?.score ?? null,
+          tier: scoreMap[id]?.tier ?? null,
+          pipeline_status: lifecycleMap[id] ?? null,
+          outreach_count: outreachCountMap[id] ?? 0,
+          favorited: favSet.has(id),
+        } as BlastLead;
+      })
+      .filter((l): l is BlastLead => l !== null)
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    leads = mapped;
   } catch (err) {
     dataError = err instanceof Error ? err.message : "Failed to load blast leads";
   }

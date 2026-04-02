@@ -18,6 +18,6 @@ function getSupabaseClient(): SupabaseClient {
 /** Lazy Supabase client – throws only when first used if env is missing. */
 export const supabase = new Proxy({} as SupabaseClient, {
   get(_, prop) {
-    return (getSupabaseClient() as Record<string | symbol, unknown>)[prop];
+    return (getSupabaseClient() as unknown as Record<string | symbol, unknown>)[prop];
   },
 });

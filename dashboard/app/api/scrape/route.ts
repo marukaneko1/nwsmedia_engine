@@ -25,6 +25,8 @@ function getPythonPath(projectRoot: string): string {
 const ALLOWED_COMMANDS = new Set([
   "scrape",
   "scrape-batch",
+  "scrape-craigslist",
+  "scrape-craigslist-batch",
   "pipeline",
   "triage",
   "audit",
@@ -77,7 +79,7 @@ function buildChildEnv(projectRoot: string) {
   // Ensure Python uses same DB as repo root .env (dashboard may not have DATABASE_URL)
   let dbUrl = inherited.DATABASE_URL ?? process.env.DATABASE_URL ?? readEnvFromRoot(projectRoot, "DATABASE_URL");
   if (dbUrl && dbUrl.startsWith("postgresql://") && !dbUrl.includes("+asyncpg")) {
-    dbUrl = dbUrl.replace("postgresql://", "postgresql+asyncpg://", 1);
+    dbUrl = dbUrl.replace("postgresql://", "postgresql+asyncpg://");
   }
   if (dbUrl) inherited.DATABASE_URL = dbUrl;
   return {

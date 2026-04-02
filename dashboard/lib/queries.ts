@@ -35,6 +35,8 @@ export function invalidateCache(prefix?: string) {
 
 const PAGE_SIZE = 1000;
 
+const FETCH_CONCURRENCY = 6;
+
 async function fetchAll<T>(
   buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; count?: number | null }>
 ): Promise<T[]> {
@@ -45,19 +47,25 @@ async function fetchAll<T>(
   const total = first.count;
 
   if (total != null && total > PAGE_SIZE) {
-    // Count available — fetch remaining pages in parallel
     const pages = Math.ceil((total - PAGE_SIZE) / PAGE_SIZE);
-    const promises: Promise<T[]>[] = [];
+    const ranges: { from: number; to: number }[] = [];
     for (let i = 1; i <= pages; i++) {
       const from = i * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
-      promises.push(buildQuery(from, to).then((r) => r.data ?? []));
+      ranges.push({ from, to });
     }
-    const rest = await Promise.all(promises);
-    return firstData.concat(...rest);
+
+    const results: T[] = [...firstData];
+    for (let i = 0; i < ranges.length; i += FETCH_CONCURRENCY) {
+      const chunk = ranges.slice(i, i + FETCH_CONCURRENCY);
+      const chunkResults = await Promise.all(
+        chunk.map((r) => buildQuery(r.from, r.to).then((res) => res.data ?? []))
+      );
+      for (const data of chunkResults) results.push(...data);
+    }
+    return results;
   }
 
-  // No count — fall back to sequential pagination
   const results: T[] = [...firstData];
   let offset = PAGE_SIZE;
   while (true) {
@@ -72,7 +80,8 @@ async function fetchAll<T>(
 
 async function fetchInBatches<T>(
   ids: number[],
-  buildQuery: (batch: number[]) => PromiseLike<{ data: T[] | null }>
+  buildQuery: (batch: number[]) => PromiseLike<{ data: T[] | null }>,
+  concurrency = 5,
 ): Promise<T[]> {
   if (ids.length === 0) return [];
   const BATCH = 300;
@@ -80,12 +89,13 @@ async function fetchInBatches<T>(
   for (let i = 0; i < ids.length; i += BATCH) {
     batches.push(ids.slice(i, i + BATCH));
   }
-  const batchResults = await Promise.all(
-    batches.map((batch) => buildQuery(batch))
-  );
   const results: T[] = [];
-  for (const { data } of batchResults) {
-    if (data) results.push(...data);
+  for (let i = 0; i < batches.length; i += concurrency) {
+    const chunk = batches.slice(i, i + concurrency);
+    const chunkResults = await Promise.all(chunk.map((batch) => buildQuery(batch)));
+    for (const { data } of chunkResults) {
+      if (data) results.push(...data);
+    }
   }
   return results;
 }
@@ -116,7 +126,7 @@ function safeAvg(rows: Array<{ score: number | null }> | null): number {
 /* ───── Shared lead assembly ───── */
 
 function buildLeadWithDetails(
-  b: { id: number; name: string; category: string | null; city: string | null; phone: string | null; website: string | null; rating: number | null; review_count: number | null; scraped_at: string },
+  b: { id: number; name: string; category: string | null; city: string | null; phone: string | null; website: string | null; rating: number | null; review_count: number | null; source_channel?: string | null; source_url?: string | null; scraped_at: string },
   triageMap: Record<number, { status: string }>,
   scoreMap: Record<number, { score: number | null; tier: string | null; segment: string | null }>,
   enrichMap: Record<number, { best_email: string | null; owner_name: string | null; enrichment_source: string | null }>,
@@ -132,6 +142,8 @@ function buildLeadWithDetails(
     website: b.website,
     rating: b.rating,
     review_count: b.review_count,
+    source_channel: b.source_channel ?? null,
+    source_url: b.source_url ?? null,
     scraped_at: b.scraped_at,
     triage_status: triageMap[b.id]?.status ?? null,
     score: scoreMap[b.id]?.score ?? null,
@@ -177,7 +189,7 @@ async function fetchAllBusinessesWithDetails(): Promise<LeadWithDetails[]> {
   const businesses = await fetchAll((from, to) =>
     supabase
       .from("businesses")
-      .select("id, name, category, city, phone, website, rating, review_count, scraped_at", { count: "exact" })
+      .select("id, name, category, city, phone, website, rating, review_count, source_channel, source_url, scraped_at", { count: "exact" })
       .order("scraped_at", { ascending: false })
       .range(from, to)
   );
@@ -201,6 +213,186 @@ async function fetchAllBusinessesWithDetails(): Promise<LeadWithDetails[]> {
 
 function getAllLeadsCached(): Promise<LeadWithDetails[]> {
   return cached("all_leads", fetchAllBusinessesWithDetails);
+}
+
+/* ───── Lightweight index for paginated queries ───── */
+
+export interface LeadIndexEntry {
+  id: number;
+  name: string;
+  city: string | null;
+  category: string | null;
+  source_channel: string | null;
+  score: number | null;
+  tier: string | null;
+  segment: string | null;
+  hasEmail: boolean;
+  triage_status: string | null;
+}
+
+async function fetchLeadIndex(): Promise<LeadIndexEntry[]> {
+  const [businesses, scores, triages, enrichments] = await Promise.all([
+    fetchAll((from, to) =>
+      supabase
+        .from("businesses")
+        .select("id, name, city, category, source_channel", { count: "exact" })
+        .range(from, to)
+    ),
+    fetchAll((from, to) =>
+      supabase
+        .from("lead_scores")
+        .select("business_id, score, tier, segment", { count: "exact" })
+        .range(from, to)
+    ),
+    fetchAll((from, to) =>
+      supabase
+        .from("triage_results")
+        .select("business_id, status", { count: "exact" })
+        .range(from, to)
+    ),
+    fetchAll((from, to) =>
+      supabase
+        .from("enrichment_data")
+        .select("business_id, best_email", { count: "exact" })
+        .range(from, to)
+    ),
+  ]);
+
+  if (businesses.length === 0) return [];
+
+  const seen = new Set<number>();
+  const unique = businesses.filter((b) => {
+    if (seen.has(b.id)) return false;
+    seen.add(b.id);
+    return true;
+  });
+
+  const scoreMap: Record<number, { score: number | null; tier: string | null; segment: string | null }> =
+    Object.fromEntries(scores.map((s) => [s.business_id, s]));
+  const triageMap: Record<number, string> =
+    Object.fromEntries(triages.map((t) => [t.business_id, t.status]));
+  const emailSet = new Set(enrichments.filter((e) => !!e.best_email).map((e) => e.business_id));
+
+  return unique.map((b) => ({
+    id: b.id,
+    name: b.name,
+    city: b.city,
+    category: b.category,
+    source_channel: b.source_channel ?? null,
+    score: scoreMap[b.id]?.score ?? null,
+    tier: scoreMap[b.id]?.tier ?? null,
+    segment: scoreMap[b.id]?.segment ?? null,
+    hasEmail: emailSet.has(b.id),
+    triage_status: triageMap[b.id] ?? null,
+  }));
+}
+
+export function getLeadIndexCached(): Promise<LeadIndexEntry[]> {
+  return cached("lead_index", fetchLeadIndex, 300_000); // 5 min cache
+}
+
+function filterIndex(
+  index: LeadIndexEntry[],
+  filters: { search?: string; city?: string; tier?: string; segment?: string; hasEmail?: boolean; noEmail?: boolean; triage?: string; minId?: number; source?: string },
+): LeadIndexEntry[] {
+  let result = index;
+  if (filters.source) result = result.filter((l) => l.source_channel === filters.source);
+  if (filters.search) {
+    const q = filters.search.toLowerCase();
+    result = result.filter(
+      (l) =>
+        (l.name && l.name.toLowerCase().includes(q)) ||
+        (l.city && l.city.toLowerCase().includes(q)) ||
+        (l.category && l.category.toLowerCase().includes(q))
+    );
+  }
+  if (filters.city) result = result.filter((l) => l.city === filters.city);
+  if (filters.tier) result = result.filter((l) => l.tier === filters.tier);
+  if (filters.segment) result = result.filter((l) => l.segment === filters.segment);
+  if (filters.hasEmail) result = result.filter((l) => l.hasEmail);
+  if (filters.noEmail) result = result.filter((l) => !l.hasEmail);
+  if (filters.triage) result = result.filter((l) => l.triage_status === filters.triage);
+  if (filters.minId) {
+    const min = filters.minId;
+    result = result.filter((l) => l.id > min);
+  }
+  return result;
+}
+
+export async function getLeadsPage(params: {
+  page: number;
+  pageSize: number;
+  search?: string;
+  city?: string;
+  tier?: string;
+  segment?: string;
+  hasEmail?: boolean;
+  noEmail?: boolean;
+  triage?: string;
+  sort?: string;
+  source?: string;
+}): Promise<{ leads: LeadWithDetails[]; total: number; pages: number }> {
+  const index = await getLeadIndexCached();
+  const filtered = filterIndex(index, params);
+
+  filtered.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+  const total = filtered.length;
+  const pages = Math.max(1, Math.ceil(total / params.pageSize));
+  const offset = (params.page - 1) * params.pageSize;
+  const pageIds = filtered.slice(offset, offset + params.pageSize).map((l) => l.id);
+
+  if (pageIds.length === 0) return { leads: [], total, pages };
+
+  const { data: businesses } = await supabase
+    .from("businesses")
+    .select("id, name, category, city, phone, website, rating, review_count, source_channel, source_url, scraped_at")
+    .in("id", pageIds);
+
+  if (!businesses || businesses.length === 0) return { leads: [], total, pages };
+
+  const { triageMap, scoreMap, enrichMap, lifecycleMap, favSet } = await fetchRelatedData(pageIds);
+
+  const bizMap = new Map(businesses.map((b) => [b.id, b]));
+  const leads = pageIds
+    .map((id) => bizMap.get(id))
+    .filter(Boolean)
+    .map((b) => buildLeadWithDetails(b!, triageMap, scoreMap, enrichMap, lifecycleMap, favSet));
+
+  return { leads, total, pages };
+}
+
+export async function getExportLeadIds(filters: {
+  tier?: string;
+  hasEmail?: boolean;
+  minId?: number;
+  source?: string;
+}): Promise<number[]> {
+  const index = await getLeadIndexCached();
+  const filtered = filterIndex(index, filters);
+  filtered.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  return filtered.map((l) => l.id);
+}
+
+export async function getLeadDetailsForIds(ids: number[]): Promise<LeadWithDetails[]> {
+  if (ids.length === 0) return [];
+
+  const businesses = await fetchInBatches(ids, (batch) =>
+    supabase
+      .from("businesses")
+      .select("id, name, category, city, phone, website, rating, review_count, source_channel, source_url, scraped_at")
+      .in("id", batch)
+  );
+
+  if (businesses.length === 0) return [];
+
+  const { triageMap, scoreMap, enrichMap, lifecycleMap, favSet } = await fetchRelatedData(ids);
+
+  const bizMap = new Map(businesses.map((b) => [b.id, b]));
+  return ids
+    .map((id) => bizMap.get(id))
+    .filter(Boolean)
+    .map((b) => buildLeadWithDetails(b!, triageMap, scoreMap, enrichMap, lifecycleMap, favSet));
 }
 
 /* ───── Exported query functions ───── */
@@ -277,7 +469,7 @@ export async function getRecentLeads(limit = 20): Promise<LeadWithDetails[]> {
   return cached(`recent_leads_${limit}`, async () => {
     const { data: businesses } = await supabase
       .from("businesses")
-      .select("id, name, category, city, phone, website, rating, review_count, scraped_at")
+      .select("id, name, category, city, phone, website, rating, review_count, source_channel, source_url, scraped_at")
       .order("scraped_at", { ascending: false })
       .limit(limit);
 

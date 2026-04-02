@@ -1,0 +1,22 @@
+Subject: re: {{ company_name }}
+
+{{ first_name }} — following up on my last note.
+
+I went ahead and looked at what the top-ranking {{ category }} businesses in {{ city }} are doing online. Every single one has a website showing up on Google when people search for their services. That's where the real volume is — not Craigslist, not word of mouth alone.
+
+The math is simple:
+
+→ Hundreds of people search "{{ category }} in {{ city }}" every month
+→ The businesses with websites get those calls
+→ The ones without don't exist to those customers
+
+You're already doing the work. A website just makes sure people can actually find you and call you — without you having to repost ads or rely on referrals alone.
+
+I can walk through everything in 10 minutes. No pitch — just what I found and what I'd prioritize first.
+
+Here's my calendar if it's easier to just pick a time: https://calendly.com/shunya-nwsmedia/30min
+
+Or just reply here, either works.
+
+All the best,
+NWS MEDIA

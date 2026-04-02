@@ -138,3 +138,135 @@ systemctl status nwsmedia-worker nwsmedia-beat
 - `journalctl -u nwsmedia-worker -f` — worker logs (Ctrl+C to exit).
 
 The pipeline will run on the schedule (e.g. full pipeline at 2:00 AM, summary email at 8:00 AM server time). Use the same Supabase DB so the dashboard on your PC (or elsewhere) shows the same data.
+
+---
+
+### 7. Updating the server (if `/opt/nwsmedia` is not a git clone)
+
+If the server was set up by copying files (e.g. `scp`) instead of `git clone`, you can’t use `git pull`. Update the code by syncing from your PC:
+
+**From PowerShell on your PC** (run `cd C:\Users\mkane\nwsmedia_engine` first):
+
+```powershell
+# Python / backend
+scp -r .\src root@178.156.247.36:/opt/nwsmedia/
+scp .\run.py root@178.156.247.36:/opt/nwsmedia/
+scp .\pyproject.toml root@178.156.247.36:/opt/nwsmedia/
+
+# Dashboard — sync only app code (do NOT sync whole .\dashboard; it includes node_modules and .next and will fail)
+scp -r .\dashboard\app root@178.156.247.36:/opt/nwsmedia/dashboard/
+scp -r .\dashboard\components root@178.156.247.36:/opt/nwsmedia/dashboard/
+scp -r .\dashboard\lib root@178.156.247.36:/opt/nwsmedia/dashboard/
+scp -r .\dashboard\public root@178.156.247.36:/opt/nwsmedia/dashboard/
+scp -r .\dashboard\types root@178.156.247.36:/opt/nwsmedia/dashboard/
+scp .\dashboard\package.json .\dashboard\package-lock.json root@178.156.247.36:/opt/nwsmedia/dashboard/
+scp .\dashboard\tsconfig.json .\dashboard\next.config.ts .\dashboard\postcss.config.mjs .\dashboard\eslint.config.mjs root@178.156.247.36:/opt/nwsmedia/dashboard/
+```
+
+(`app/` already contains `globals.css`.) On the server, run `npm install` in `/opt/nwsmedia/dashboard` only if you build or run the dashboard there; the Python worker does not need it.
+
+Then on the server:
+
+```bash
+cd /opt/nwsmedia
+.venv/bin/pip install -e .
+systemctl restart nwsmedia-worker nwsmedia-beat
+```
+
+**Optional: use git on the server**  
+To use `git pull` in the future, on the server run once:
+
+```bash
+cd /opt/nwsmedia
+git init
+git remote add origin https://github.com/marukaneko1/nwsmedia_engine.git
+git fetch origin main
+git reset --hard origin/main
+# Keep your .env (don't overwrite)
+.venv/bin/pip install -e .
+systemctl restart nwsmedia-worker nwsmedia-beat
+```
+
+---
+
+### 8. Troubleshooting: pipeline and summary email not running on schedule
+
+The **nightly pipeline** runs at **2:00 AM** and the **daily summary email** at **8:00 AM** (America/New_York). Both are triggered by **Celery Beat**. If nothing runs at those times, check the following on the server.
+
+#### 1. Beat must be running
+
+Beat is what actually enqueues the scheduled tasks. If only the worker is running, manual `trigger-pipeline` works but the 2am/8am schedule never fires.
+
+```bash
+systemctl status nwsmedia-worker nwsmedia-beat
+```
+
+You must see **both** `active (running)`. If `nwsmedia-beat` is inactive or failed:
+
+```bash
+sudo systemctl start nwsmedia-beat
+sudo systemctl enable nwsmedia-beat
+journalctl -u nwsmedia-beat -n 50 --no-pager
+```
+
+#### 2. Redis must be up
+
+The worker and beat use Redis as the broker. If Redis is down, tasks are not enqueued or executed.
+
+```bash
+systemctl status redis-server
+redis-cli ping   # should reply PONG
+```
+
+#### 3. Summary email env vars
+
+The 8am email only sends if these are set in `/opt/nwsmedia/.env`:
+
+- `SUMMARY_EMAIL_FROM` (e.g. your Gmail)
+- `SUMMARY_EMAIL_PASSWORD` (Gmail app password)
+- `SUMMARY_EMAIL_TO` (recipient address)
+
+If any are missing, the task still runs but logs `summary_email_skipped` and does not send. Check:
+
+```bash
+cd /opt/nwsmedia
+grep -E "SUMMARY_EMAIL_FROM|SUMMARY_EMAIL_PASSWORD|SUMMARY_EMAIL_TO" .env
+```
+
+#### 4. Test the schedule manually
+
+Without waiting for 2am/8am, you can trigger the same tasks from the server:
+
+```bash
+cd /opt/nwsmedia
+# Trigger full pipeline (same as 2am)
+.venv/bin/python run.py trigger-pipeline --max-per-run 75 --parallel 5
+
+# Trigger summary email (same as 8am)
+.venv/bin/python run.py trigger-summary
+```
+
+If `trigger-summary` runs but you don’t get an email, check the worker logs for `summary_email_skipped` or `summary_email_failed` (e.g. wrong password or missing env).
+
+#### 5. Service names
+
+The setup script creates **nwsmedia-worker** and **nwsmedia-beat**. If you created custom units named e.g. `celery-worker` and `celery-beat`, use those names in the `systemctl` commands above and ensure the beat unit runs the same app: `celery -A src.celery_app beat`.
+
+---
+
+### 9. Deduplicate existing leads
+
+To see how many duplicate businesses exist (same name+phone or name+city):
+
+```bash
+cd /opt/nwsmedia
+.venv/bin/python run.py dedup --dry-run
+```
+
+To remove duplicates (keeps oldest row per business, deletes the rest and their related data):
+
+```bash
+.venv/bin/python run.py dedup
+```
+
+Then re-run the pipeline so triage/score/enrich apply to the cleaned set: from the dashboard run **Scraper → Auto** (or trigger pipeline manually).

@@ -92,24 +92,7 @@ const PRESET_LOCATIONS = [
   "Oklahoma City, OK",
 ];
 
-const BATCH_CONFIGS_SUMMARY = {
-  niches: [
-    { niche: "HVAC contractor", count: 10 },
-    { niche: "plumber", count: 10 },
-    { niche: "roofer", count: 10 },
-    { niche: "electrician", count: 8 },
-    { niche: "general contractor", count: 7 },
-    { niche: "landscaping company", count: 7 },
-    { niche: "pest control company", count: 10 },
-    { niche: "auto repair shop", count: 10 },
-    { niche: "tree service", count: 9 },
-    { niche: "painting company", count: 8 },
-    { niche: "garage door repair", count: 8 },
-  ],
-  get totalRuns() {
-    return this.niches.reduce((sum, n) => sum + n.count, 0);
-  },
-};
+const TOTAL_BATCH_RUNS = 4115;
 
 const MAX_OUTPUT_LINES = 5000;
 
@@ -122,6 +105,7 @@ export function ScraperPanel() {
   const [maxResults, setMaxResults] = useState(200);
   const [headless, setHeadless] = useState(true);
   const [maxPerRun, setMaxPerRun] = useState(75);
+  const [maxRuns, setMaxRuns] = useState(50);
   const [dryRun, setDryRun] = useState(false);
   const [minScore, setMinScore] = useState(40);
   const [limit, setLimit] = useState("");
@@ -160,6 +144,7 @@ export function ScraperPanel() {
       case "auto":
         return [
           "--max-per-run", String(maxPerRun),
+          "--limit", String(maxRuns),
           headless ? "--headless" : "--no-headless",
           ...(dryRun ? ["--dry-run"] : []),
         ];
@@ -173,6 +158,7 @@ export function ScraperPanel() {
       case "scrape-batch":
         return [
           "--max-per-run", String(maxPerRun),
+          "--limit", String(maxRuns),
           headless ? "--headless" : "--no-headless",
           ...(dryRun ? ["--dry-run"] : []),
         ];
@@ -195,7 +181,7 @@ export function ScraperPanel() {
       default:
         return [];
     }
-  }, [selectedOp, niche, location, maxResults, headless, maxPerRun, dryRun, minScore, limit, backfillAll]);
+  }, [selectedOp, niche, location, maxResults, headless, maxPerRun, maxRuns, dryRun, minScore, limit, backfillAll]);
 
   const canRun = useCallback((): boolean => {
     if (status === "running") return false;
@@ -524,6 +510,8 @@ export function ScraperPanel() {
               setHeadless={setHeadless}
               maxPerRun={maxPerRun}
               setMaxPerRun={setMaxPerRun}
+              maxRuns={maxRuns}
+              setMaxRuns={setMaxRuns}
               dryRun={dryRun}
               setDryRun={setDryRun}
               minScore={minScore}
@@ -636,6 +624,8 @@ function FormFields({
   setHeadless,
   maxPerRun,
   setMaxPerRun,
+  maxRuns,
+  setMaxRuns,
   dryRun,
   setDryRun,
   minScore,
@@ -656,6 +646,8 @@ function FormFields({
   setHeadless: (v: boolean) => void;
   maxPerRun: number;
   setMaxPerRun: (v: number) => void;
+  maxRuns: number;
+  setMaxRuns: (v: number) => void;
   dryRun: boolean;
   setDryRun: (v: boolean) => void;
   minScore: number;
@@ -667,13 +659,20 @@ function FormFields({
 }) {
   switch (selectedOp) {
     case "auto": {
-      const totalRuns = BATCH_CONFIGS_SUMMARY.totalRuns;
-      const estimatedLeads = totalRuns * maxPerRun;
+      const estimatedLeads = maxRuns * maxPerRun;
       return (
         <>
           <p className="text-sm text-muted-foreground">
-            Runs batch scrape (all preset niches + locations), then triage → audit → score → enrich.
+            Runs batch scrape (first {maxRuns} of {TOTAL_BATCH_RUNS.toLocaleString()} preset niche+location combos), then triage → audit → score → enrich.
           </p>
+          <SliderField
+            label="Max Runs"
+            value={maxRuns}
+            onChange={setMaxRuns}
+            min={5}
+            max={500}
+            step={5}
+          />
           <SliderField
             label="Max Per Run"
             value={maxPerRun}
@@ -691,16 +690,10 @@ function FormFields({
               </span>
             </div>
             <div className="text-xs text-muted-foreground space-y-1">
-              <p>{totalRuns} runs × {maxPerRun} per run = up to {estimatedLeads.toLocaleString()} leads</p>
-              <p className="text-[11px] opacity-70">Actual count depends on available listings per area. Duplicates are filtered automatically.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              {BATCH_CONFIGS_SUMMARY.niches.map(({ niche, count }) => (
-                <div key={niche} className="flex items-center justify-between rounded-md bg-background px-2.5 py-1.5 text-xs">
-                  <span className="truncate text-foreground">{niche}</span>
-                  <span className="ml-2 shrink-0 tabular-nums text-muted-foreground">{count} × {maxPerRun}</span>
-                </div>
-              ))}
+              <p>{maxRuns} runs × {maxPerRun} per run = up to {estimatedLeads.toLocaleString()} leads</p>
+              <p className="text-[11px] opacity-70">
+                {TOTAL_BATCH_RUNS.toLocaleString()} total combos available (90 niches × up to 100 locations). Duplicates are filtered automatically.
+              </p>
             </div>
           </div>
 
@@ -759,6 +752,17 @@ function FormFields({
     case "scrape-batch":
       return (
         <>
+          <SliderField
+            label="Max Runs"
+            value={maxRuns}
+            onChange={setMaxRuns}
+            min={5}
+            max={500}
+            step={5}
+          />
+          <p className="text-xs text-muted-foreground">
+            First {maxRuns} of {TOTAL_BATCH_RUNS.toLocaleString()} niche+location combos (~{(maxRuns * maxPerRun).toLocaleString()} leads max)
+          </p>
           <SliderField
             label="Max Per Run"
             value={maxPerRun}

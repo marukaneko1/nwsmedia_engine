@@ -49,3 +49,7 @@ node_modules/
 # Misc
 *.bak
 *.tmp
+
+# Local SQLite (voice agent / dev)
+**/voice_agent.db
+**/voice_agent.db-*

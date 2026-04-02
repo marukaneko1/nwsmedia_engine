@@ -16,7 +16,7 @@ const emptyPipeline = {
 };
 
 export default async function PipelinePage() {
-  let pipelineData = emptyPipeline;
+  let pipelineData: Record<string, any[]> = emptyPipeline;
   let dataError: string | null = null;
 
   try {

@@ -193,9 +193,12 @@ async def save_businesses(session, businesses: list[dict]) -> int:
         get_existing_place_ids,
     )
 
+    from src.database import async_session as _session_factory
+
     place_ids = [b["place_id"] for b in businesses if b.get("place_id")]
-    existing_pids = await get_existing_place_ids(session, place_ids)
-    existing_names = await get_existing_name_keys(session)
+    async with _session_factory() as dedup_session:
+        existing_pids = await get_existing_place_ids(dedup_session, place_ids)
+        existing_names = await get_existing_name_keys(dedup_session)
     unique = deduplicate_results(businesses, existing_pids, existing_names)
 
     count = 0

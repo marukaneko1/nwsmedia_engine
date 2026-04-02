@@ -1,0 +1,16 @@
+Subject: quick question about {{ company_name }}
+
+{{ first_name }},
+
+Where do most of {{ company_name }}'s customers come from right now — Craigslist? Referrals? Word of mouth?
+
+I ask because I recently worked with a {{ category }} in a similar spot. They were grinding on Craigslist and Nextdoor, spending hours every week reposting ads. Good work, steady reputation, but completely dependent on manual effort to get new jobs.
+
+We built them a site optimized for local search. Within 6 weeks they were showing up on the first page of Google for their main services. Monthly leads tripled — and they haven't posted on Craigslist since.
+
+The situations are almost identical to what I see with {{ company_name }}. You've got the skills and the hustle. A website just turns that into a machine that works while you're on the job.
+
+If you're curious what that'd look like for {{ company_name }}, happy to share. No strings attached.
+
+All the best,
+NWS MEDIA

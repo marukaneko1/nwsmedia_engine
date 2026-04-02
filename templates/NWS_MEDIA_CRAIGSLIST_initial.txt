@@ -1,0 +1,24 @@
+Subject: {{ company_name }} — let's 2x or 3x your revenue
+
+{{ first_name }},
+
+Let me double or triple your revenue in no time.
+
+Bold claim — but hear me out. I found {{ company_name }} on Craigslist looking for {{ category }} work in {{ city }}. The fact that you're hustling on CL tells me two things: you do good work, and you need more customers finding you.
+
+Here's the problem — Craigslist posts get buried in hours. You're competing with every other {{ category }} posting the same day, and the people searching Google for "{{ category }} in {{ city }}" will never see you there.
+
+Right now thousands of people in {{ city }} are Googling exactly what you do every month. Without a website, you're invisible to all of them.
+
+Here's what I'd set up for {{ company_name }}:
+
+→ A fast, professional site built around "{{ category }} {{ city }}" so Google sends you customers on autopilot
+→ Click-to-call and a quote form that works on every phone
+→ Your best work front and center — photos, services, areas you cover
+
+Instead of reposting on Craigslist every few days hoping someone sees it, you'd have a system that brings leads to you 24/7.
+
+Want me to map out exactly what this would look like for {{ company_name }}? No cost, no obligation — just a breakdown of what I'd build and why.
+
+All the best,
+NWS MEDIA

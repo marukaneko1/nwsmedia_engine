@@ -12,6 +12,9 @@ export interface Business {
   rating: number | null;
   review_count: number | null;
   maps_url: string | null;
+  source_channel: string | null;
+  source_url: string | null;
+  listing_description: string | null;
   scraped_at: string;
   updated_at: string;
 }
@@ -96,6 +99,8 @@ export interface LeadWithDetails {
   website: string | null;
   rating: number | null;
   review_count: number | null;
+  source_channel: string | null;
+  source_url: string | null;
   scraped_at: string;
   triage_status: string | null;
   score: number | null;
