@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NWS Media CRM — Development Checklist</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232736;
+    --border: #2e3348;
+    --text: #e4e6f0;
+    --text-muted: #8b8fa3;
+    --accent: #6c63ff;
+    --accent-glow: rgba(108, 99, 255, .15);
+    --green: #22c55e;
+    --green-bg: rgba(34, 197, 94, .1);
+    --amber: #f59e0b;
+    --amber-bg: rgba(245, 158, 11, .1);
+    --red: #ef4444;
+    --red-bg: rgba(239, 68, 68, .1);
+    --cyan: #06b6d4;
+    --cyan-bg: rgba(6, 182, 212, .1);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height:1.6; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+
+  header { text-align: center; margin-bottom: 40px; }
+  header h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+  header p { color: var(--text-muted); font-size: 14px; }
+
+  .progress-bar-container { background: var(--surface); border-radius: 12px; padding: 20px 24px; margin-bottom: 32px; border: 1px solid var(--border); }
+  .progress-stats { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .progress-stats .label { font-size: 14px; color: var(--text-muted); }
+  .progress-stats .value { font-size: 20px; font-weight: 700; color: var(--accent); }
+  .progress-track { height: 10px; background: var(--surface2); border-radius: 5px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #a78bfa); border-radius: 5px; transition: width .4s ease; }
+
+  .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+  .filter-btn { padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); font-size: 13px; cursor: pointer; transition: all .2s; }
+  .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+  .filter-btn.active { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+  .section { margin-bottom: 28px; }
+  .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; cursor: pointer; user-select: none; }
+  .section-header h2 { font-size: 16px; font-weight: 600; }
+  .section-header .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .badge-critical { background: var(--red-bg); color: var(--red); }
+  .badge-high { background: var(--amber-bg); color: var(--amber); }
+  .badge-medium { background: var(--cyan-bg); color: var(--cyan); }
+  .badge-low { background: var(--green-bg); color: var(--green); }
+  .section-header .chevron { color: var(--text-muted); transition: transform .2s; font-size: 12px; }
+  .section-header .chevron.open { transform: rotate(90deg); }
+  .section-header .count { color: var(--text-muted); font-size: 13px; margin-left: auto; }
+
+  .section-body { display: grid; gap: 6px; }
+  .section-body.collapsed { display: none; }
+
+  .task { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; transition: all .2s; }
+  .task:hover { border-color: var(--accent); background: var(--surface2); }
+  .task.done { opacity: .5; }
+  .task input[type=checkbox] { appearance: none; width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--border); cursor: pointer; flex-shrink: 0; margin-top: 2px; transition: all .15s; }
+  .task input[type=checkbox]:checked { background: var(--green); border-color: var(--green); }
+  .task input[type=checkbox]:checked::after { content: '✓'; display: block; text-align: center; color: #fff; font-size: 12px; line-height: 14px; font-weight: 700; }
+  .task-content { flex: 1; }
+  .task-title { font-size: 14px; font-weight: 500; }
+  .task.done .task-title { text-decoration: line-through; color: var(--text-muted); }
+  .task-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .task-tags { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+  .tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .tag-be { border-color: #6366f180; color: #818cf8; }
+  .tag-fe { border-color: #06b6d480; color: #22d3ee; }
+  .tag-infra { border-color: #f59e0b80; color: #fbbf24; }
+  .tag-sdk { border-color: #a78bfa80; color: #c4b5fd; }
+
+  .legend { display: flex; gap: 16px; justify-content: center; margin-top: 32px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>NWS Media CRM — Remaining Development</h1>
+    <p>Full checklist of features from the spec that still need real implementation</p>
+  </header>
+
+  <div class="progress-bar-container">
+    <div class="progress-stats">
+      <span class="label">Overall Progress</span>
+      <span class="value" id="progressValue">0 / 0 tasks</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div class="filter-bar" id="filterBar">
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="critical">Critical</button>
+    <button class="filter-btn" data-filter="high">High</button>
+    <button class="filter-btn" data-filter="medium">Medium</button>
+    <button class="filter-btn" data-filter="low">Low</button>
+  </div>
+
+  <div id="checklist"></div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Critical — Blocks core workflows</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div>High — Key spec features</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cyan)"></div>Medium — Scale & polish</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Low — Future / nice-to-have</div>
+  </div>
+</div>
+
+<script>
+const DATA = [
+  {
+    title: "1. Real Stripe SDK Integration",
+    priority: "critical",
+    tasks: [
+      { t: "Install stripe npm package", d: "npm install stripe", tags: ["backend","sdk"] },
+      { t: "Add Stripe signature verification to webhook", d: "stripe.webhooks.constructEvent() in /webhooks/stripe", tags: ["backend"] },
+      { t: "Create real PaymentIntent on payment link creation", d: "stripe.paymentIntents.create() in POST /api/payment-links/create", tags: ["backend","sdk"] },
+      { t: "Build Stripe Elements payment page", d: "React page with CardElement, loadStripe, and confirm flow at /pay/:slug", tags: ["frontend","sdk"] },
+      { t: "Payment success/error pages", d: "Branded confirmation and error screens after payment", tags: ["frontend"] },
+      { t: "Confirm payment endpoint", d: "POST /api/payment-links/:id/confirm returning clientSecret", tags: ["backend"] },
+    ]
+  },
+  {
+    title: "2. File Upload & Download (S3 / Cloudflare R2)",
+    priority: "critical",
+    tasks: [
+      { t: "Install AWS S3 SDK", d: "npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner multer", tags: ["backend","sdk"] },
+      { t: "S3 client configuration service", d: "S3Client init with bucket, region, credentials from env", tags: ["backend"] },
+      { t: "General file upload endpoint", d: "POST /api/files/upload with multer middleware + S3 putObject", tags: ["backend"] },
+      { t: "Signed URL download endpoint", d: "GET /api/files/:id/download generating presigned S3 URL", tags: ["backend"] },
+      { t: "Client portal file upload", d: "POST /api/portal/files/upload for client-side uploads", tags: ["backend"] },
+      { t: "Revision screenshot upload", d: "Multipart form in POST /api/portal/revisions/submit", tags: ["backend"] },
+      { t: "File management UI (Ops)", d: "Upload/download interface on the Ops client detail page", tags: ["frontend"] },
+      { t: "File sharing UI (Portal)", d: "Client portal files page with download buttons", tags: ["frontend"] },
+    ]
+  },
+  {
+    title: "3. Email Service (SendGrid)",
+    priority: "critical",
+    tasks: [
+      { t: "Install SendGrid SDK", d: "npm install @sendgrid/mail", tags: ["backend","sdk"] },
+      { t: "Email sending service", d: "Reusable sendEmail() function with template rendering", tags: ["backend"] },
+      { t: "Magic link email (portal)", d: "Actually send the magic-link email instead of returning _dev_link", tags: ["backend"] },
+      { t: "Payment receipt email", d: "Send receipt after successful payment webhook", tags: ["backend"] },
+      { t: "Deposit request email", d: "Send payment link after contract signed", tags: ["backend"] },
+      { t: "Commission earned notification email", d: "Email VA/Closer when commission created", tags: ["backend"] },
+      { t: "Sequence step emails", d: "Nurture / follow-up / ghost recovery email delivery", tags: ["backend"] },
+      { t: "Email template system", d: "Handlebars or similar for dynamic variables in templates", tags: ["backend"] },
+    ]
+  },
+  {
+    title: "4. Background Job Queue (Bull + Redis)",
+    priority: "critical",
+    tasks: [
+      { t: "Install Bull and Redis", d: "npm install bull ioredis", tags: ["backend","sdk"] },
+      { t: "Queue configuration", d: "Bull queue setup with Redis connection from env", tags: ["backend","infra"] },
+      { t: "Sequence step processor", d: "Worker that fires sequence steps on schedule (delay_days)", tags: ["backend"] },
+      { t: "Lead enrichment job", d: "Background job triggered on lead creation for Clearbit/Apollo lookup", tags: ["backend"] },
+      { t: "Payment reminder job", d: "Scheduled job to send reminders for upcoming/overdue payment links", tags: ["backend"] },
+      { t: "Email send queue", d: "Offload email sends to queue for reliability & retries", tags: ["backend"] },
+    ]
+  },
+  {
+    title: "5. Sequence / Automation Engine",
+    priority: "high",
+    tasks: [
+      { t: "Sequence CRUD API", d: "GET/POST/PATCH/DELETE /api/sequences", tags: ["backend"] },
+      { t: "Sequence enrollment API", d: "POST /api/sequences/:id/enroll with lead_id, trigger", tags: ["backend"] },
+      { t: "Sequence step execution", d: "Process each step via Bull job, send email/SMS, advance to next", tags: ["backend"] },
+      { t: "Enrollment triggers", d: "Auto-enroll on: lead 'not ready', proposal no-response, contract not signed, no-show, lost deal", tags: ["backend"] },
+      { t: "Un-enrollment logic", d: "Stop sequence when lead replies, books meeting, or status changes", tags: ["backend"] },
+      { t: "Sequence management UI (Admin)", d: "Frontend page to create/edit/view sequences and enrolled contacts", tags: ["frontend"] },
+      { t: "Pre-built sequence templates", d: "Seed 'Not Ready 6-Mo Drip', 'Proposal Follow-Up', 'Ghost Recovery'", tags: ["backend"] },
+    ]
+  },
+  {
+    title: "6. Twilio Phone System",
+    priority: "high",
+    tasks: [
+      { t: "Install Twilio SDK", d: "npm install twilio", tags: ["backend","sdk"] },
+      { t: "Click-to-dial API", d: "POST /api/calls/initiate — Twilio call creation or GV tel: URI log", tags: ["backend"] },
+      { t: "Twilio voice webhook", d: "POST /webhooks/twilio/voice — return TwiML for recording", tags: ["backend"] },
+      { t: "Call recording webhook", d: "POST /webhooks/twilio/recording — save RecordingUrl to activity", tags: ["backend"] },
+      { t: "Call transcription webhook", d: "POST /webhooks/twilio/transcription — save transcript", tags: ["backend"] },
+      { t: "SMS sending API", d: "POST /api/sms/send with Twilio SDK", tags: ["backend"] },
+      { t: "SMS status webhook", d: "POST /webhooks/twilio/sms-status for delivery tracking", tags: ["backend"] },
+      { t: "SMS templates", d: "initial_contact, callback_reminder, payment_reminder templates", tags: ["backend"] },
+      { t: "Click-to-dial modal (VA Dashboard)", d: "Phone number selector modal: GV / Personal / Twilio options", tags: ["frontend"] },
+      { t: "Call logging UI", d: "Outcome dropdown (connected/VM/no answer/DNC), notes, duration display", tags: ["frontend"] },
+      { t: "SMS compose UI", d: "SMS send form with template picker in lead detail", tags: ["frontend"] },
+    ]
+  },
+  {
+    title: "7. Square Payment Processor",
+    priority: "high",
+    tasks: [
+      { t: "Install Square SDK", d: "npm install square", tags: ["backend","sdk"] },
+      { t: "Square checkout link creation", d: "Create Square payment link in POST /api/payment-links/create when processor='square'", tags: ["backend"] },
+      { t: "Square webhook handler", d: "Implement /webhooks/square with payment.created handling", tags: ["backend"] },
+      { t: "Square payment page option", d: "Frontend payment page supports Square Web SDK as alternative", tags: ["frontend"] },
+    ]
+  },
+  {
+    title: "8. PayPal Payment Processor",
+    priority: "high",
+    tasks: [
+      { t: "Install PayPal SDK", d: "npm install @paypal/checkout-server-sdk", tags: ["backend","sdk"] },
+      { t: "PayPal order creation", d: "Create PayPal order in payment link flow when processor='paypal'", tags: ["backend"] },
+      { t: "PayPal IPN/webhook handler", d: "Implement /webhooks/paypal with payment verification", tags: ["backend"] },
+      { t: "PayPal payment page option", d: "PayPal buttons on payment page for PayPal processor links", tags: ["frontend"] },
+    ]
+  },
+  {
+    title: "9. DocuSign E-Signatures",
+    priority: "high",
+    tasks: [
+      { t: "Install DocuSign SDK", d: "npm install docusign-esign", tags: ["backend","sdk"] },
+      { t: "DocuSign auth (JWT grant)", d: "OAuth token management for DocuSign API", tags: ["backend"] },
+      { t: "Send contract for signing", d: "POST /api/deals/:id/send-contract creating DocuSign envelope", tags: ["backend"] },
+      { t: "DocuSign signed webhook", d: "POST /webhooks/docusign/signed — update deal, trigger invoice + payment link", tags: ["backend"] },
+      { t: "Contract status UI", d: "Show contract status (sent/viewed/signed) on deal detail page", tags: ["frontend"] },
+    ]
+  },
+  {
+    title: "10. PandaDoc Proposal Builder",
+    priority: "high",
+    tasks: [
+      { t: "Install PandaDoc SDK", d: "npm install pandadoc-node-client", tags: ["backend","sdk"] },
+      { t: "Proposal template CRUD", d: "Store and manage proposal templates (Basic, Premium, Custom)", tags: ["backend"] },
+      { t: "Generate proposal from deal", d: "POST /api/deals/:id/send-proposal with template + deal data", tags: ["backend"] },
+      { t: "Proposal viewed webhook", d: "Track when client opens/views proposal, alert closer", tags: ["backend"] },
+      { t: "Proposal builder UI", d: "Closer can select template, adjust line items, preview, and send", tags: ["frontend"] },
+    ]
+  },
+  {
+    title: "11. Lead Enrichment (Clearbit / Apollo)",
+    priority: "high",
+    tasks: [
+      { t: "Install Clearbit/Apollo SDK", d: "npm install clearbit or Apollo API client", tags: ["backend","sdk"] },
+      { t: "Enrichment service", d: "Lookup company by domain/email, return employees, revenue, industry", tags: ["backend"] },
+      { t: "Auto-enrich on lead creation", d: "Background job triggers enrichment, merges data, recalculates ICP", tags: ["backend"] },
+      { t: "BuiltWith tech stack detection", d: "Detect tech stack from lead's website domain", tags: ["backend"] },
+      { t: "Enrichment data display", d: "Show enriched data (company size, revenue, tech stack) on lead detail", tags: ["frontend"] },
+    ]
+  },
+  {
+    title: "12. Real-Time Notifications",
+    priority: "high",
+    tasks: [
+      { t: "Install Socket.io", d: "npm install socket.io (backend), socket.io-client (frontend)", tags: ["backend","frontend","sdk"] },
+      { t: "WebSocket server setup", d: "Attach Socket.io to Express server with JWT auth", tags: ["backend"] },
+      { t: "Notification service", d: "sendNotification() function to emit events + store in DB", tags: ["backend"] },
+      { t: "Notifications table migration", d: "user_id, type, title, message, link, read_at, created_at", tags: ["backend"] },
+      { t: "Notification bell component", d: "Header bell icon with unread count badge, dropdown list", tags: ["frontend"] },
+      { t: "Notification types", d: "new_qualified_lead, payment_received, commission_earned, revision_submitted, etc.", tags: ["backend"] },
+      { t: "Mark as read / mark all read", d: "PATCH /api/notifications/:id/read and /read-all", tags: ["backend","frontend"] },
+    ]
+  },
+  {
+    title: "13. Duplicate Lead Detection",
+    priority: "medium",
+    tasks: [
+      { t: "Email exact match check", d: "On lead creation, check if email already exists", tags: ["backend"] },
+      { t: "Phone normalized match", d: "Normalize phone formats, check for duplicates", tags: ["backend"] },
+      { t: "Company + domain fuzzy match", d: "Fuzzy matching on company_name combined with domain", tags: ["backend"] },
+      { t: "Merge or reject flow", d: "Return duplicate warning with option to merge or reject", tags: ["backend"] },
+      { t: "Duplicate detection UI", d: "Modal showing potential duplicates when creating leads", tags: ["frontend"] },
+    ]
+  },
+  {
+    title: "14. Commission & Payout Export",
+    priority: "medium",
+    tasks: [
+      { t: "Commission CSV export endpoint", d: "GET /api/commissions/export with date range and user filters", tags: ["backend"] },
+      { t: "Payout summary CSV", d: "Export payout records for accounting/payroll", tags: ["backend"] },
+      { t: "Export buttons in Admin UI", d: "Download CSV buttons on Admin Commissions page", tags: ["frontend"] },
+    ]
+  },
+  {
+    title: "15. Advanced Analytics & Forecasting",
+    priority: "medium",
+    tasks: [
+      { t: "Revenue time-series endpoint", d: "Monthly/weekly revenue data for charts", tags: ["backend"] },
+      { t: "Conversion funnel endpoint", d: "Lead→Deal→Client conversion rates by period", tags: ["backend"] },
+      { t: "Revenue forecasting", d: "Weighted pipeline + historical close rate = projected revenue", tags: ["backend"] },
+      { t: "Customer Lifetime Value (CLV)", d: "Calculate CLV per client segment", tags: ["backend"] },
+      { t: "VA effectiveness metrics", d: "Qualified leads / total calls, avg score of converted leads", tags: ["backend"] },
+      { t: "Closer win-rate metrics", d: "Deals closed / deals received, avg cycle time, avg deal size", tags: ["backend"] },
+      { t: "Charts & graphs (Admin Dashboard)", d: "Line charts, bar charts, funnels using Chart.js or Recharts", tags: ["frontend"] },
+    ]
+  },
+  {
+    title: "16. Lead Capture Integrations",
+    priority: "medium",
+    tasks: [
+      { t: "Google Maps scraper webhook", d: "POST /webhooks/scraper/google-maps — ingest scraped leads", tags: ["backend"] },
+      { t: "Meta Ads lead form sync", d: "Facebook/Meta Ads API to pull lead form submissions", tags: ["backend","sdk"] },
+      { t: "Instagram DM capture", d: "Instagram API polling for DM-based lead inquiries", tags: ["backend","sdk"] },
+      { t: "Apify scraper pipeline webhook", d: "POST /webhooks/scraper/apify — ingest Apify results", tags: ["backend"] },
+      { t: "Public referral form page", d: "Unauthenticated page for external referral submissions", tags: ["frontend"] },
+    ]
+  },
+  {
+    title: "17. GDPR Compliance Endpoints",
+    priority: "medium",
+    tasks: [
+      { t: "Data export endpoint", d: "GET /api/gdpr/export — return all user's personal data as JSON", tags: ["backend"] },
+      { t: "Account deletion / anonymization", d: "DELETE /api/gdpr/delete-account — anonymize user, purge PII", tags: ["backend"] },
+      { t: "GDPR request UI", d: "Settings page for users to request export or deletion", tags: ["frontend"] },
+    ]
+  },
+  {
+    title: "18. Google Drive Sync",
+    priority: "medium",
+    tasks: [
+      { t: "Google Drive API auth", d: "OAuth2 setup for Google Drive API access", tags: ["backend","sdk"] },
+      { t: "Folder sync per client", d: "Create/sync client folders in shared Google Drive", tags: ["backend"] },
+      { t: "File delivery to Drive", d: "Push deliverables to client's Drive folder", tags: ["backend"] },
+    ]
+  },
+  {
+    title: "19. QuickBooks Export",
+    priority: "medium",
+    tasks: [
+      { t: "QuickBooks API integration", d: "OAuth2 + invoice/payment sync", tags: ["backend","sdk"] },
+      { t: "Invoice sync to QuickBooks", d: "Push CRM invoices as QB invoices", tags: ["backend"] },
+      { t: "Payment sync", d: "Sync received payments to QB for bookkeeping", tags: ["backend"] },
+    ]
+  },
+  {
+    title: "20. Zapier / Outbound Webhooks",
+    priority: "medium",
+    tasks: [
+      { t: "Outbound webhook system", d: "Register external URLs, fire events on lead created, deal closed, payment, etc.", tags: ["backend"] },
+      { t: "Webhook management UI", d: "Admin page to add/test/remove webhook subscriptions", tags: ["frontend"] },
+      { t: "Zapier app setup", d: "Zapier trigger definitions for key CRM events", tags: ["infra"] },
+    ]
+  },
+  {
+    title: "21. Testing Suite",
+    priority: "medium",
+    tasks: [
+      { t: "Install Jest + Supertest", d: "npm install --save-dev jest ts-jest supertest @types/jest @types/supertest", tags: ["backend","infra"] },
+      { t: "Commission calculation unit tests", d: "VA 10%/$500 min, Closer tiered — per spec formulas", tags: ["backend"] },
+      { t: "ICP scoring unit tests", d: "Test each scoring factor + edge cases", tags: ["backend"] },
+      { t: "API endpoint integration tests", d: "Leads, Deals, Payments, Commissions CRUD flows", tags: ["backend"] },
+      { t: "Webhook integration tests", d: "Stripe payment success/failure/refund mock events", tags: ["backend"] },
+      { t: "Install Playwright", d: "npm install --save-dev @playwright/test", tags: ["frontend","infra"] },
+      { t: "E2E: Full deal cycle", d: "VA creates lead → qualifies → Closer sends proposal → payment → commission", tags: ["frontend"] },
+      { t: "E2E: Client portal flow", d: "Magic link login → view dashboard → submit revision → refer", tags: ["frontend"] },
+    ]
+  },
+  {
+    title: "22. CI/CD Pipeline",
+    priority: "medium",
+    tasks: [
+      { t: "GitHub Actions test workflow", d: ".github/workflows/test.yml — run Jest + lint on PR", tags: ["infra"] },
+      { t: "Frontend deploy workflow", d: "Auto-deploy to Vercel on merge to main", tags: ["infra"] },
+      { t: "Backend deploy workflow", d: "Auto-deploy to Railway on merge to main", tags: ["infra"] },
+      { t: "Database migration step", d: "Run migrations as part of deploy pipeline", tags: ["infra"] },
+    ]
+  },
+  {
+    title: "23. Monitoring & Error Tracking",
+    priority: "medium",
+    tasks: [
+      { t: "Install Sentry SDK", d: "npm install @sentry/node (backend), @sentry/react (frontend)", tags: ["backend","frontend","sdk"] },
+      { t: "Sentry initialization", d: "Configure DSN, environment, release tracking", tags: ["backend","frontend"] },
+      { t: "Structured logging", d: "Replace console.error with winston/pino structured logger", tags: ["backend"] },
+      { t: "Uptime monitoring", d: "Better Stack or similar for /health endpoint monitoring", tags: ["infra"] },
+      { t: "Alert rules", d: "PagerDuty/Slack alerts for DB failures, webhook errors, slow API", tags: ["infra"] },
+    ]
+  },
+  {
+    title: "24. Database Operations & Scaling",
+    priority: "medium",
+    tasks: [
+      { t: "Automated backup script", d: "pg_dump → compress → upload to S3, cron daily", tags: ["infra"] },
+      { t: "Connection pooling (PgBouncer)", d: "Configure PgBouncer for production connection management", tags: ["infra"] },
+      { t: "Table partitioning", d: "Partition activities and audit_log by date for query performance", tags: ["backend"] },
+      { t: "Redis cache layer", d: "Cache expensive queries (analytics, dashboard aggregations)", tags: ["backend"] },
+      { t: "Read replica for analytics", d: "Route analytics queries to read replica to reduce primary load", tags: ["infra"] },
+    ]
+  },
+  {
+    title: "25. Slack Integration",
+    priority: "low",
+    tasks: [
+      { t: "Slack webhook setup", d: "Incoming webhook for #sales channel notifications", tags: ["backend","sdk"] },
+      { t: "New qualified lead notification", d: "Post to Slack when lead is qualified / handed off", tags: ["backend"] },
+      { t: "Payment received notification", d: "Post to Slack when payment comes in", tags: ["backend"] },
+      { t: "Referral submitted notification", d: "Post to Slack when client submits referral", tags: ["backend"] },
+    ]
+  },
+  {
+    title: "26. Mobile App (React Native)",
+    priority: "low",
+    tasks: [
+      { t: "React Native project setup", d: "Expo or bare RN project for VA mobile app", tags: ["frontend","infra"] },
+      { t: "Authentication screen", d: "Login with existing credentials", tags: ["frontend"] },
+      { t: "Mobile call queue", d: "VA call queue with click-to-dial on mobile", tags: ["frontend"] },
+      { t: "Push notifications", d: "FCM/APNs for real-time lead assignments, payment alerts", tags: ["frontend","backend"] },
+      { t: "Mobile lead entry", d: "Quick lead creation form optimized for phone", tags: ["frontend"] },
+    ]
+  },
+  {
+    title: "27. AI / ML Features",
+    priority: "low",
+    tasks: [
+      { t: "ML lead scoring model", d: "Train model on historical conversion data to improve ICP scores", tags: ["backend"] },
+      { t: "Call sentiment analysis", d: "Analyze call transcripts for positive/negative sentiment", tags: ["backend"] },
+      { t: "Deal close probability", d: "Predict close likelihood based on deal attributes + history", tags: ["backend"] },
+      { t: "Smart follow-up suggestions", d: "AI-generated recommended next actions per lead/deal", tags: ["backend"] },
+      { t: "Churn prediction", d: "Identify at-risk clients based on engagement patterns", tags: ["backend"] },
+    ]
+  },
+  {
+    title: "28. Production Hardening",
+    priority: "low",
+    tasks: [
+      { t: "Per-user / per-IP rate limiting", d: "More granular rate limits beyond the global 200/15min", tags: ["backend"] },
+      { t: "Input sanitization audit", d: "Ensure all user inputs are sanitized against XSS/SQLi", tags: ["backend"] },
+      { t: "CORS tightening", d: "Restrict origins to exact production domains", tags: ["backend"] },
+      { t: "Security headers", d: "Helmet.js for CSP, HSTS, X-Frame-Options, etc.", tags: ["backend"] },
+      { t: "API documentation (OpenAPI/Swagger)", d: "Auto-generated API docs at /api-docs", tags: ["backend","infra"] },
+      { t: "Environment variable validation", d: "Fail fast on startup if required env vars are missing", tags: ["backend"] },
+    ]
+  },
+];
+
+let completedSet = new Set();
+const STORAGE_KEY = 'nws_crm_checklist';
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) completedSet = new Set(JSON.parse(saved));
+  } catch {}
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([...completedSet]));
+}
+
+function taskId(si, ti) { return `s${si}_t${ti}`; }
+
+function countAll() {
+  let total = 0;
+  DATA.forEach(s => total += s.tasks.length);
+  return total;
+}
+
+function updateProgress() {
+  const total = countAll();
+  const done = completedSet.size;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  document.getElementById('progressValue').textContent = `${done} / ${total} tasks (${pct}%)`;
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+let activeFilter = 'all';
+let openSections = new Set(DATA.map((_, i) => i));
+
+function render() {
+  const container = document.getElementById('checklist');
+  container.innerHTML = '';
+
+  DATA.forEach((section, si) => {
+    if (activeFilter !== 'all' && section.priority !== activeFilter) return;
+
+    const sectionDiv = document.createElement('div');
+    sectionDiv.className = 'section';
+
+    const isOpen = openSections.has(si);
+    const doneCount = section.tasks.filter((_, ti) => completedSet.has(taskId(si, ti))).length;
+
+    sectionDiv.innerHTML = `
+      <div class="section-header" data-si="${si}">
+        <span class="chevron ${isOpen ? 'open' : ''}">&#9654;</span>
+        <h2>${section.title}</h2>
+        <span class="badge badge-${section.priority}">${section.priority}</span>
+        <span class="count">${doneCount}/${section.tasks.length}</span>
+      </div>
+      <div class="section-body ${isOpen ? '' : 'collapsed'}">
+        ${section.tasks.map((task, ti) => {
+          const id = taskId(si, ti);
+          const checked = completedSet.has(id);
+          return `
+            <div class="task ${checked ? 'done' : ''}">
+              <input type="checkbox" ${checked ? 'checked' : ''} data-id="${id}">
+              <div class="task-content">
+                <div class="task-title">${task.t}</div>
+                <div class="task-desc">${task.d}</div>
+                <div class="task-tags">${task.tags.map(tg => `<span class="tag tag-${tg}">${tg}</span>`).join('')}</div>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>`;
+
+    container.appendChild(sectionDiv);
+  });
+
+  container.querySelectorAll('.section-header').forEach(h => {
+    h.addEventListener('click', () => {
+      const si = parseInt(h.dataset.si);
+      if (openSections.has(si)) openSections.delete(si); else openSections.add(si);
+      render();
+    });
+  });
+
+  container.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const id = cb.dataset.id;
+      if (cb.checked) completedSet.add(id); else completedSet.delete(id);
+      saveState();
+      updateProgress();
+      render();
+    });
+  });
+}
+
+document.getElementById('filterBar').addEventListener('click', e => {
+  if (!e.target.classList.contains('filter-btn')) return;
+  activeFilter = e.target.dataset.filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  render();
+});
+
+loadState();
+render();
+updateProgress();
+</script>
+</body>
+</html>

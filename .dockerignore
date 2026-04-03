@@ -1,0 +1,17 @@
+node_modules
+.git
+.env
+.env.local
+*.md
+*.pdf
+NWS_CRM_*.html
+terminals
+agent-transcripts
+.cursor
+certbot
+_remote.py
+_setup_vps.py
+_upload.py
+_upload_locks.py
+_fix_upload.py
+_create_env.py
