@@ -109,14 +109,31 @@ RULES:
 
 /* ─── Build eval prompt ──────────────────────────────────────────────── */
 
-function buildEvalPrompt(transcript: string, niche: string, difficulty: string): string {
+function buildEvalPrompt(transcript: string, niche: string, difficulty: string, speechAnalytics?: Record<string, unknown>): string {
   const prospect = PROSPECTS[niche] || PROSPECTS.contractor;
-  return `You are a cold calling coach evaluating a practice call transcript. The rep called ${prospect.name} at ${prospect.company} (${niche} industry, ${difficulty} difficulty).
+  const analyticsBlock = speechAnalytics ? `
+
+SPEECH ANALYTICS (captured from voice recognition during the call):
+- Total words spoken by rep: ${speechAnalytics.totalWords || 0}
+- Filler words detected: ${JSON.stringify(speechAnalytics.fillerWords || {})}
+- Total filler count: ${speechAnalytics.totalFillers || 0}
+- Number of pauses (>2s silence): ${speechAnalytics.pauseCount || 0}
+- Average pause duration: ${speechAnalytics.avgPauseDuration || 0}s
+- Longest pause: ${speechAnalytics.longestPause || 0}s
+- Call duration: ${speechAnalytics.callDuration || 0}s
+- Words per minute: ${speechAnalytics.wordsPerMinute || 0}
+- Turns taken: ${speechAnalytics.turnCount || 0}
+- Average words per turn: ${speechAnalytics.avgWordsPerTurn || 0}
+
+Factor these speech patterns into your evaluation. Filler words (um, uh, like, you know, basically, literally, actually, so, right) indicate nervousness or lack of preparation. Strategic pauses after discovery questions are GOOD. Nervous pauses mid-sentence are BAD. Speaking pace should be ~140-160 WPM for authority; faster suggests rushing, slower suggests uncertainty.` : '';
+
+  return `You are an elite cold calling coach evaluating a practice call. The rep called ${prospect.name} at ${prospect.company} (${niche} industry, ${difficulty} difficulty).
 
 NWS Media is a marketing agency that helps local businesses grow revenue through websites, SEO, paid ads, and marketing systems.
 
 TRANSCRIPT:
 ${transcript}
+${analyticsBlock}
 
 Evaluate the rep's performance. Return STRICT JSON ONLY — no preamble, no markdown fences, no explanation outside the JSON. The response must be valid JSON that can be parsed with JSON.parse().
 
@@ -129,17 +146,27 @@ Return this exact shape:
     "Gap building": <number 1-10>,
     "Psychology / tonality": <number 1-10>,
     "Objection handling": <number 1-10>,
-    "Close": <number 1-10>
+    "Close": <number 1-10>,
+    "Pacing & delivery": <number 1-10>,
+    "Confidence": <number 1-10>
   },
   "headline": "<one-line summary of performance>",
   "summary": "<2-sentence overall assessment>",
-  "wins": ["<specific thing done well>", "<another win>"],
-  "misses": ["<specific miss with suggestion>", "<another miss>"],
+  "wins": ["<specific thing done well>", "<another win>", "<third win if applicable>"],
+  "misses": ["<specific miss with concrete suggestion for what to say instead>", "<another miss>", "<third miss if applicable>"],
   "bestLine": "<exact quote from the rep that was strongest, or empty string if nothing stood out>",
-  "wouldHaveBooked": <boolean — would a real prospect have booked a meeting?>
+  "worstLine": "<exact quote from the rep that was weakest, with explanation of what to say instead>",
+  "wouldHaveBooked": <boolean — would a real prospect have booked a meeting?>,
+  "speechFeedback": {
+    "fillerVerdict": "<1-2 sentence assessment of filler word usage — e.g. 'Your 14 filler words made you sound unsure. Practice pausing instead of saying um.'>",
+    "pacingVerdict": "<1-2 sentence assessment of speaking pace and pause usage>",
+    "confidenceVerdict": "<1-2 sentence assessment of how confident the rep sounded based on word choice and delivery>",
+    "topFix": "<the single most impactful thing the rep should change for their next call>"
+  },
+  "rewrittenOpener": "<rewrite the rep's actual opening line to be more effective — show them exactly what they should have said>"
 }
 
-Be honest and specific. Reference actual lines from the transcript. Score based on NWS Media's cold calling methodology: psychology-first, correction technique, gap building, neutral disarming, assumptive close.`;
+Be brutally honest and specific. Reference actual lines from the transcript. Score based on NWS Media's cold calling methodology: psychology-first, correction technique, gap building, neutral disarming, assumptive close.`;
 }
 
 /* ─── Call Claude API ────────────────────────────────────────────────── */
@@ -213,7 +240,7 @@ router.post('/chat', async (req: Request, res: Response) => {
 // POST /api/simulator/evaluate — score a completed call
 router.post('/evaluate', async (req: Request, res: Response) => {
   try {
-    const { niche, difficulty, messages } = req.body;
+    const { niche, difficulty, messages, speechAnalytics } = req.body;
     if (!niche || !difficulty || !Array.isArray(messages)) {
       res.status(400).json({ error: 'niche, difficulty, and messages[] are required' });
       return;
@@ -225,8 +252,8 @@ router.post('/evaluate', async (req: Request, res: Response) => {
       )
       .join('\n');
 
-    const evalPrompt = buildEvalPrompt(transcript, niche, difficulty);
-    const raw = await callClaude(evalPrompt, [{ role: 'user', content: 'Evaluate this call transcript and return the JSON score.' }], 1024);
+    const evalPrompt = buildEvalPrompt(transcript, niche, difficulty, speechAnalytics);
+    const raw = await callClaude(evalPrompt, [{ role: 'user', content: 'Evaluate this call transcript and return the JSON score.' }], 2048);
 
     // Strip any accidental markdown fences
     const cleaned = raw.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim();

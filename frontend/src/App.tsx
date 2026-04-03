@@ -56,6 +56,8 @@ import { AdminContracts } from './pages/admin/Contracts';
 import { EngineOverview } from './pages/admin/lead-engine/EngineOverview';
 import { ScraperPanel } from './pages/admin/lead-engine/ScraperPanel';
 import { CraigslistPanel } from './pages/admin/lead-engine/CraigslistPanel';
+import { YelpPanel } from './pages/admin/lead-engine/YelpPanel';
+import { FilingsPanel } from './pages/admin/lead-engine/FilingsPanel';
 import { ScrapedLeads } from './pages/admin/lead-engine/ScrapedLeads';
 import { ScrapedLeadDetail } from './pages/admin/lead-engine/ScrapedLeadDetail';
 
@@ -225,6 +227,8 @@ export default function App() {
             <Route path="/admin/lead-engine" element={<EngineOverview />} />
             <Route path="/admin/lead-engine/scraper" element={<ScraperPanel />} />
             <Route path="/admin/lead-engine/craigslist" element={<CraigslistPanel />} />
+            <Route path="/admin/lead-engine/yelp" element={<YelpPanel />} />
+            <Route path="/admin/lead-engine/filings" element={<FilingsPanel />} />
             <Route path="/admin/lead-engine/leads" element={<ScrapedLeads />} />
             <Route path="/admin/lead-engine/leads/:id" element={<ScrapedLeadDetail />} />
           </Route>

@@ -65,6 +65,9 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ENGINE_DATABASE_URL: postgresql://${POSTGRES_USER:-nwscrm}:${POSTGRES_PASSWORD}@postgres:5432/nwsmedia_leads
+      ENGINE_ROOT: /app
     volumes:
       - uploads:/app/backend/uploads
     networks:

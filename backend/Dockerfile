@@ -31,9 +31,11 @@ RUN npm run build
 
 # ── Production image ─────────────────────────────────────────────────────
 FROM node:20-alpine
-RUN apk add --no-cache tini
+RUN apk add --no-cache tini python3 py3-pip
+
 WORKDIR /app
 
+# ── Node backend ─────────────────────────────────────────────────────────
 COPY --from=builder /app/shared ./shared/
 COPY --from=builder /app/backend/package*.json ./backend/
 
@@ -44,9 +46,16 @@ COPY --from=builder /app/backend/dist ./dist/
 COPY --from=builder /app/backend/src ./src/
 COPY --from=builder /app/backend/tsconfig.json ./
 RUN mkdir -p uploads/chat uploads/training
-
 RUN npm install -g tsx
+
+# ── Python lead engine ───────────────────────────────────────────────────
+WORKDIR /app
+COPY pyproject.toml run.py ./
+COPY src/ ./src/
+RUN python3 -m venv .venv \
+    && .venv/bin/pip install --no-cache-dir -e . \
+    && .venv/bin/playwright install --with-deps chromium
 
 EXPOSE 3000
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "dist/server.js"]
+CMD ["node", "/app/backend/dist/server.js"]

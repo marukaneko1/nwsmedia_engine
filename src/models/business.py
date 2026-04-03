@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, DateTime, Index, Integer, Numeric, String, Text
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Index, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -36,10 +36,22 @@ class Business(Base):
     scraped_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
+    # Yelp-specific fields
+    is_claimed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    price_tier: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    # Secretary of State filing fields
+    filing_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    entity_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    registered_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    officer_names: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
     __table_args__ = (
         Index("idx_businesses_place_id", "place_id"),
         Index("idx_businesses_category", "category"),
         Index("idx_businesses_city", "city"),
+        Index("idx_businesses_filing_date", "filing_date"),
+        Index("idx_businesses_is_claimed", "is_claimed"),
     )
 
     def __repr__(self) -> str:

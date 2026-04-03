@@ -113,6 +113,8 @@ const navItems: Record<UserRole, NavEntry[]> = {
       { label: 'Overview', path: '/admin/lead-engine', icon: icons.engine },
       { label: 'Scraper', path: '/admin/lead-engine/scraper', icon: icons.scraper },
       { label: 'Craigslist', path: '/admin/lead-engine/craigslist', icon: icons.megaphone },
+      { label: 'Yelp', path: '/admin/lead-engine/yelp', icon: icons.scraper },
+      { label: 'Filings', path: '/admin/lead-engine/filings', icon: icons.contracts },
       { label: 'Scraped Leads', path: '/admin/lead-engine/leads', icon: icons.scrapedLeads },
     ]},
     { section: 'Operations', items: [

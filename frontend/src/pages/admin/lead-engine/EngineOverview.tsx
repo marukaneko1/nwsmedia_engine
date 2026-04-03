@@ -136,6 +136,38 @@ export function EngineOverview() {
                 <Button variant="ghost" size="sm">Open Scraper</Button>
               </Link>
             </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/30">
+                  <svg className="h-5 w-5 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Yelp</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Unclaimed local businesses</p>
+                </div>
+              </div>
+              <Link to="/admin/lead-engine/yelp">
+                <Button variant="ghost" size="sm">Open Scraper</Button>
+              </Link>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30">
+                  <svg className="h-5 w-5 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">New Business Filings</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">SoS LLC/Corp incorporations</p>
+                </div>
+              </div>
+              <Link to="/admin/lead-engine/filings">
+                <Button variant="ghost" size="sm">Open Importer</Button>
+              </Link>
+            </div>
           </div>
         </Card>
 
@@ -163,6 +195,32 @@ export function EngineOverview() {
                   <div>
                     <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Craigslist Scraper</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Services listings</p>
+                  </div>
+                </div>
+              </div>
+            </Link>
+            <Link to="/admin/lead-engine/yelp" className="block">
+              <div className="rounded-lg border border-gray-200 p-4 hover:bg-gray-50 dark:border-[#1a1a1a] dark:hover:bg-[#111] transition-colors">
+                <div className="flex items-center gap-3">
+                  <svg className="h-5 w-5 text-red-500 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Yelp Scraper</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Unclaimed businesses</p>
+                  </div>
+                </div>
+              </div>
+            </Link>
+            <Link to="/admin/lead-engine/filings" className="block">
+              <div className="rounded-lg border border-gray-200 p-4 hover:bg-gray-50 dark:border-[#1a1a1a] dark:hover:bg-[#111] transition-colors">
+                <div className="flex items-center gap-3">
+                  <svg className="h-5 w-5 text-green-500 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">New Business Filings</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">SoS import + enrich</p>
                   </div>
                 </div>
               </div>

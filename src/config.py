@@ -21,12 +21,19 @@ class Settings(BaseSettings):
     instantly_campaign_id_dead_website: str = ""
     instantly_campaign_id_has_website: str = ""
 
-    # Channel 2: LLC Filings + Direct Mail
+    # Channel 2: Yelp Fusion API
+    yelp_api_key: str = ""
+    yelp_daily_limit: int = 500
+
+    # Channel 3 (was 2): LLC Filings + Direct Mail
+    apollo_api_key: str = ""
     cobalt_api_key: str = ""
     snov_api_key: str = ""
     lob_api_key: str = ""
     lob_api_key_test: str = ""
     instantly_campaign_id_llc: str = ""
+    sos_fl_data_path: str = ""
+    sos_tx_data_path: str = ""
 
     # Channel 3: Craigslist Services
     craigslist_max_pages: int = 3

@@ -13,6 +13,11 @@ const ALLOWED_COMMANDS = new Set([
   'scrape-batch',
   'scrape-craigslist',
   'scrape-craigslist-batch',
+  'scrape-yelp',
+  'scrape-yelp-batch',
+  'yelp-pipeline',
+  'import-filings',
+  'enrich-filings',
   'pipeline',
   'triage',
   'audit',
@@ -29,6 +34,18 @@ const stripAnsi = (text: string) => text.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
 let activeProc: ChildProcess | undefined;
 
 function getProjectRoot(): string {
+  if (process.env.ENGINE_ROOT) return path.resolve(process.env.ENGINE_ROOT);
+
+  // Walk up from __dirname until we find run.py
+  let dir = path.resolve(__dirname);
+  for (let i = 0; i < 6; i++) {
+    if (existsSync(path.join(dir, 'run.py'))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  // Fallback: assume standard monorepo layout (backend/src/routes -> root)
   const backendDir = path.resolve(__dirname, '..', '..');
   return path.resolve(backendDir, '..');
 }
@@ -38,7 +55,11 @@ function getPythonPath(projectRoot: string): string {
   const rel = isWin
     ? path.join('.venv', 'Scripts', 'python.exe')
     : path.join('.venv', 'bin', 'python');
-  return path.join(projectRoot, rel);
+  const venvPath = path.join(projectRoot, rel);
+  if (existsSync(venvPath)) return venvPath;
+
+  // Fallback to system python
+  return isWin ? 'python' : 'python3';
 }
 
 function readEnvFromRoot(projectRoot: string, key: string): string | undefined {
@@ -152,11 +173,7 @@ router.post('/run', async (req: Request, res: Response) => {
   const runScript = path.join(projectRoot, 'run.py');
 
   if (!existsSync(runScript)) {
-    res.status(400).json({ error: `run.py not found at ${runScript}` });
-    return;
-  }
-  if (!existsSync(pythonPath)) {
-    res.status(400).json({ error: `Python venv not found at ${pythonPath}. Create one with: python -m venv .venv` });
+    res.status(400).json({ error: `run.py not found at ${runScript}. Set ENGINE_ROOT env var to the directory containing run.py.` });
     return;
   }
 

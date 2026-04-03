@@ -2,6 +2,9 @@ node_modules
 .git
 .env
 .env.local
+.venv
+__pycache__
+*.pyc
 *.md
 *.pdf
 NWS_CRM_*.html

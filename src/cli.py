@@ -1260,6 +1260,269 @@ async def _copy_local_to_supabase(source_url: str, dry_run: bool) -> None:
     console.print(f"\n[bold green]Done.[/bold green] Copied {len(to_insert)} businesses to target DB.\n")
 
 
+# ── Yelp Scraper ────────────────────────────────────────────────────
+
+YELP_NICHES = [
+    "dentist", "chiropractor", "med spa", "contractor", "hvac",
+    "plumber", "roofing", "electrician", "landscaping", "auto repair",
+    "hair salon", "barber", "restaurant", "veterinarian", "realtor",
+]
+
+YELP_METRO_ZIPS = {
+    "Miami, FL": ["33101", "33109", "33125", "33126", "33127", "33128", "33129", "33130", "33131", "33132", "33133", "33134", "33135", "33136", "33137", "33138", "33139", "33140", "33141", "33142", "33143", "33144", "33145", "33146", "33147", "33149", "33150", "33155", "33156", "33157", "33158", "33160", "33161", "33162", "33165", "33166", "33167", "33168", "33169", "33170", "33172", "33173", "33174", "33175", "33176", "33177", "33178", "33179", "33180", "33181", "33182", "33183", "33184", "33185", "33186", "33187", "33189", "33190", "33193", "33194", "33196"],
+    "Tampa, FL": ["33601", "33602", "33603", "33604", "33605", "33606", "33607", "33609", "33610", "33611", "33612", "33613", "33614", "33615", "33616", "33617", "33618", "33619", "33620", "33621", "33624", "33625", "33626", "33629", "33634", "33635", "33637", "33647"],
+    "Houston, TX": ["77001", "77002", "77003", "77004", "77005", "77006", "77007", "77008", "77009", "77010", "77011", "77012", "77013", "77014", "77015", "77016", "77017", "77018", "77019", "77020", "77021", "77022", "77023", "77024", "77025", "77026", "77027", "77028", "77029", "77030", "77031", "77032", "77033", "77034", "77035", "77036", "77037", "77038", "77039", "77040"],
+    "Dallas, TX": ["75201", "75202", "75203", "75204", "75205", "75206", "75207", "75208", "75209", "75210", "75211", "75212", "75214", "75215", "75216", "75217", "75218", "75219", "75220", "75223", "75224", "75225", "75226", "75227", "75228", "75229", "75230", "75231", "75232", "75233", "75234", "75235", "75236", "75237", "75238", "75240", "75241", "75243", "75244", "75246"],
+    "Orlando, FL": ["32801", "32803", "32804", "32805", "32806", "32807", "32808", "32809", "32810", "32811", "32812", "32814", "32817", "32818", "32819", "32820", "32821", "32822", "32824", "32825", "32826", "32827", "32828", "32829", "32832", "32835", "32836", "32837", "32839"],
+    "Las Vegas, NV": ["89101", "89102", "89103", "89104", "89106", "89107", "89108", "89109", "89110", "89113", "89115", "89117", "89118", "89119", "89120", "89121", "89122", "89123", "89128", "89129", "89130", "89131", "89134", "89135", "89138", "89139", "89141", "89142", "89143", "89144", "89145", "89146", "89147", "89148", "89149"],
+}
+
+
+@cli.command("scrape-yelp")
+@click.option("--niche", required=True, help='Business type (e.g. "dentist")')
+@click.option("--location", required=True, help='City or zip code')
+@click.option("--unclaimed-only/--all-listings", default=True, help="Only unclaimed listings")
+@click.option("--max-reviews", default=50, help="Max review count filter")
+@click.option("--require-website", is_flag=True, help="Only include listings with website URL")
+@click.option("--limit", default=50, help="Max results per API call")
+def scrape_yelp_cmd(niche: str, location: str, unclaimed_only: bool, max_reviews: int, require_website: bool, limit: int) -> None:
+    """Scrape Yelp Fusion API for businesses in a niche + location."""
+    asyncio.run(_scrape_yelp(niche, location, unclaimed_only, max_reviews, require_website, limit))
+
+
+async def _scrape_yelp(niche: str, location: str, unclaimed_only: bool, max_reviews: int, require_website: bool, limit: int) -> None:
+    from src.database import async_session
+    from src.scraper.yelp import save_yelp_businesses, scrape_yelp
+
+    console.print(f"\n[bold blue]Scraping Yelp[/bold blue]")
+    console.print(f"  Niche:          {niche}")
+    console.print(f"  Location:       {location}")
+    console.print(f"  Unclaimed only: {unclaimed_only}")
+    console.print(f"  Max reviews:    {max_reviews}\n")
+
+    businesses = await scrape_yelp(
+        niche=niche,
+        location=location,
+        unclaimed_only=unclaimed_only,
+        max_reviews=max_reviews,
+        require_website=require_website,
+        limit=limit,
+    )
+
+    console.print(f"[green]Found {len(businesses)} matching businesses[/green]")
+
+    if businesses:
+        async with async_session() as session:
+            saved = await save_yelp_businesses(session, businesses)
+            console.print(f"[green]Saved {saved} new businesses to database[/green]")
+
+        table = Table(title="Yelp Results (first 10)")
+        table.add_column("Name", style="cyan", max_width=30)
+        table.add_column("Category")
+        table.add_column("City")
+        table.add_column("Rating")
+        table.add_column("Reviews")
+        table.add_column("Claimed")
+        table.add_column("Price")
+
+        for biz in businesses[:10]:
+            table.add_row(
+                biz.get("name", "")[:30],
+                biz.get("category", ""),
+                biz.get("city", ""),
+                str(biz.get("rating", "")),
+                str(biz.get("review_count", "")),
+                "Yes" if biz.get("is_claimed") else "No",
+                biz.get("price_tier", ""),
+            )
+        console.print(table)
+
+
+@cli.command("scrape-yelp-batch")
+@click.option("--niche", required=True, help='Business type (e.g. "dentist")')
+@click.option("--metro", required=True, help="Metro area key (e.g. 'Miami, FL')")
+@click.option("--unclaimed-only/--all-listings", default=True)
+@click.option("--max-reviews", default=50)
+@click.option("--dry-run", is_flag=True, help="Only print zip codes, don't scrape")
+def scrape_yelp_batch_cmd(niche: str, metro: str, unclaimed_only: bool, max_reviews: int, dry_run: bool) -> None:
+    """Batch scrape Yelp across zip codes in a metro area."""
+    asyncio.run(_scrape_yelp_batch(niche, metro, unclaimed_only, max_reviews, dry_run))
+
+
+async def _scrape_yelp_batch(niche: str, metro: str, unclaimed_only: bool, max_reviews: int, dry_run: bool) -> None:
+    from src.database import async_session
+    from src.scraper.yelp import save_yelp_businesses, scrape_yelp_batch
+
+    zips = YELP_METRO_ZIPS.get(metro)
+    if not zips:
+        console.print(f"[red]Unknown metro: {metro}[/red]")
+        console.print(f"Available: {', '.join(YELP_METRO_ZIPS.keys())}")
+        return
+
+    console.print(f"\n[bold blue]Yelp Batch Scrape[/bold blue]")
+    console.print(f"  Niche: {niche}")
+    console.print(f"  Metro: {metro} ({len(zips)} zip codes)")
+
+    if dry_run:
+        for i, z in enumerate(zips, 1):
+            console.print(f"  {i}. {z}")
+        console.print("\n[dim]Run without --dry-run to execute.[/dim]")
+        return
+
+    businesses = await scrape_yelp_batch(
+        niche=niche,
+        zip_codes=zips,
+        unclaimed_only=unclaimed_only,
+        max_reviews=max_reviews,
+    )
+
+    console.print(f"\n[green]Found {len(businesses)} unique matching businesses[/green]")
+
+    if businesses:
+        async with async_session() as session:
+            saved = await save_yelp_businesses(session, businesses)
+            console.print(f"[green]Saved {saved} new businesses to database[/green]")
+
+
+@cli.command("yelp-pipeline")
+@click.option("--niche", required=True, help='Business type')
+@click.option("--metro", required=True, help="Metro area key")
+@click.option("--unclaimed-only/--all-listings", default=True)
+@click.option("--max-reviews", default=50)
+def yelp_pipeline_cmd(niche: str, metro: str, unclaimed_only: bool, max_reviews: int) -> None:
+    """Full Yelp pipeline: scrape batch -> triage -> audit -> score -> enrich."""
+    asyncio.run(_yelp_pipeline(niche, metro, unclaimed_only, max_reviews))
+
+
+async def _yelp_pipeline(niche: str, metro: str, unclaimed_only: bool, max_reviews: int) -> None:
+    console.print("\n[bold blue]Yelp Pipeline: Scrape -> Triage -> Audit -> Score -> Enrich[/bold blue]\n")
+
+    console.print("[bold]Step 1/5: Yelp Batch Scrape[/bold]")
+    await _scrape_yelp_batch(niche, metro, unclaimed_only, max_reviews, dry_run=False)
+
+    console.print("\n[bold]Step 2/5: Triage[/bold]")
+    await _triage()
+
+    console.print("\n[bold]Step 3/5: Audit[/bold]")
+    await _audit()
+
+    console.print("\n[bold]Step 4/5: Score[/bold]")
+    await _score()
+
+    console.print("\n[bold]Step 5/5: Enrich[/bold]")
+    await _enrich(min_score=40, max_leads=None)
+
+    console.print("\n[bold green]Yelp Pipeline complete.[/bold green]\n")
+
+
+# ── Secretary of State Filings ──────────────────────────────────────
+
+@cli.command("import-filings")
+@click.option("--state", required=True, help="State code (FL, TX)")
+@click.option("--file", "file_path", required=True, help="Path to bulk CSV file")
+@click.option("--days-min", default=14, help="Min days since filing (default 14)")
+@click.option("--days-max", default=75, help="Max days since filing (default 75)")
+@click.option("--entity-types", default="LLC,Corporation", help="Comma-separated entity types to include")
+def import_filings_cmd(state: str, file_path: str, days_min: int, days_max: int, entity_types: str) -> None:
+    """Import Secretary of State bulk CSV file (FL or TX)."""
+    types = [t.strip() for t in entity_types.split(",")]
+    asyncio.run(_import_filings(state, file_path, days_min, days_max, types))
+
+
+async def _import_filings(state: str, file_path: str, days_min: int, days_max: int, entity_types: list[str]) -> None:
+    from src.database import async_session
+    from src.scraper.sos import import_filings, save_sos_businesses
+
+    console.print(f"\n[bold blue]Importing {state.upper()} Filings[/bold blue]")
+    console.print(f"  File:          {file_path}")
+    console.print(f"  Date range:    {days_min}-{days_max} days ago")
+    console.print(f"  Entity types:  {', '.join(entity_types)}\n")
+
+    records = await import_filings(
+        state=state,
+        file_path=file_path,
+        days_min=days_min,
+        days_max=days_max,
+        entity_types=entity_types,
+    )
+
+    console.print(f"[green]Parsed {len(records)} matching filings[/green]")
+
+    if records:
+        async with async_session() as session:
+            saved = await save_sos_businesses(session, records)
+            console.print(f"[green]Saved {saved} new businesses to database[/green]")
+
+        table = Table(title=f"{state.upper()} Filings (first 10)")
+        table.add_column("Name", style="cyan", max_width=35)
+        table.add_column("Type")
+        table.add_column("City")
+        table.add_column("Filing Date")
+        table.add_column("Agent", max_width=25)
+
+        for r in records[:10]:
+            table.add_row(
+                r.get("name", "")[:35],
+                r.get("entity_type", ""),
+                r.get("city", ""),
+                str(r.get("filing_date", "")),
+                (r.get("registered_agent") or "")[:25],
+            )
+        console.print(table)
+
+
+@cli.command("enrich-filings")
+@click.option("--limit", "max_leads", default=None, type=int, help="Max leads to enrich")
+@click.option("--dry-run", is_flag=True, help="Only count, don't call Apollo API")
+def enrich_filings_cmd(max_leads: int | None, dry_run: bool) -> None:
+    """Enrich SoS filings with Apollo.io (owner email from name + company)."""
+    asyncio.run(_enrich_filings(max_leads, dry_run))
+
+
+async def _enrich_filings(max_leads: int | None, dry_run: bool) -> None:
+    from sqlalchemy import select
+
+    from src.database import async_session
+    from src.models.business import Business
+    from src.models.enrichment import EnrichmentData
+    from src.scraper.sos.enrichment import enrich_sos_leads
+
+    async with async_session() as session:
+        already = {r[0] for r in (await session.execute(select(EnrichmentData.business_id))).all()}
+
+        stmt = (
+            select(Business)
+            .where(Business.source_channel.in_(["sos_fl", "sos_tx", "sos_nv", "sos_ny"]))
+            .order_by(Business.scraped_at.desc())
+        )
+        rows = (await session.execute(stmt)).scalars().all()
+        to_enrich = [b for b in rows if b.id not in already]
+        if max_leads:
+            to_enrich = to_enrich[:max_leads]
+
+    if not to_enrich:
+        console.print("[yellow]No SoS filings to enrich.[/yellow]")
+        return
+
+    console.print(f"\n[bold blue]Enriching {len(to_enrich)} SoS filings via Apollo[/bold blue]\n")
+
+    if dry_run:
+        console.print(f"[dim]Dry run — would enrich {len(to_enrich)} leads. Run without --dry-run to execute.[/dim]")
+        return
+
+    async with async_session() as session:
+        counts = await enrich_sos_leads(session, to_enrich)
+
+    table = Table(title="SoS Enrichment Results")
+    table.add_column("Metric", style="cyan")
+    table.add_column("Count", justify="right")
+    table.add_row("Email found", str(counts["enriched"]))
+    table.add_row("No email", str(counts["no_email"]))
+    table.add_row("Apollo calls", str(counts["apollo_calls"]))
+    table.add_row("Already enriched", str(counts["skipped"]))
+    console.print(table)
+
+
 @cli.command("worker")
 @click.option("--concurrency", default=2, help="Number of concurrent worker processes")
 @click.option("--loglevel", default="info", help="Log level (debug, info, warning, error)")

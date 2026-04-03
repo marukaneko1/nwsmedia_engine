@@ -112,6 +112,28 @@ def calculate_lead_score(
     score += seo_pts
     breakdown["seo"] = seo_pts
 
+    # === YELP CLAIMED STATUS (max 10) ===
+    claimed_pts = 0
+    if hasattr(business, "is_claimed") and business.is_claimed is False:
+        claimed_pts = 10
+    score += claimed_pts
+    breakdown["yelp_unclaimed"] = claimed_pts
+
+    # === SOS FILING RECENCY (max 15) ===
+    filing_pts = 0
+    if hasattr(business, "filing_date") and business.filing_date:
+        from datetime import date as _date
+        days_since = (utcnow().date() if hasattr(utcnow(), "date") else _date.today()) - business.filing_date
+        days = days_since.days if hasattr(days_since, "days") else 0
+        if 0 < days <= 30:
+            filing_pts = 15
+        elif days <= 75:
+            filing_pts = 10
+        elif days <= 120:
+            filing_pts = 5
+    score += filing_pts
+    breakdown["filing_recency"] = filing_pts
+
     # === BUSINESS HEALTH (max 25) — segment-aware ===
     review_count = business.review_count or 0
     rating = float(business.rating or 0)

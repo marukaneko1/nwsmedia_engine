@@ -3,6 +3,13 @@ import { api } from '../../utils/api';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 
+/* ─── Browser Speech API shim ────────────────────────────────────────── */
+
+const SpeechRecognitionCtor: any =
+  typeof window !== 'undefined'
+    ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    : null;
+
 /* ─── Types ──────────────────────────────────────────────────────────── */
 
 type Screen = 'setup' | 'call' | 'feedback';
@@ -20,6 +27,13 @@ interface Prospect {
   company: string;
 }
 
+interface SpeechFeedback {
+  fillerVerdict: string;
+  pacingVerdict: string;
+  confidenceVerdict: string;
+  topFix: string;
+}
+
 interface Scores {
   overall: number;
   scores: Record<string, number>;
@@ -28,7 +42,23 @@ interface Scores {
   wins: string[];
   misses: string[];
   bestLine: string;
+  worstLine?: string;
   wouldHaveBooked: boolean;
+  speechFeedback?: SpeechFeedback;
+  rewrittenOpener?: string;
+}
+
+interface SpeechAnalytics {
+  totalWords: number;
+  fillerWords: Record<string, number>;
+  totalFillers: number;
+  pauseCount: number;
+  avgPauseDuration: number;
+  longestPause: number;
+  callDuration: number;
+  wordsPerMinute: number;
+  turnCount: number;
+  avgWordsPerTurn: number;
 }
 
 interface PastSession {
@@ -49,6 +79,37 @@ interface Stats {
   best_score: number | null;
   booked_count: string;
   avg_duration: string | null;
+}
+
+/* ─── Filler word patterns ───────────────────────────────────────────── */
+
+const FILLER_PATTERNS = [
+  'um', 'uh', 'uhh', 'umm', 'hmm', 'hm',
+  'like', 'you know', 'basically', 'literally',
+  'actually', 'so', 'right', 'i mean',
+  'kind of', 'sort of', 'i guess', 'whatever',
+  'honestly', 'obviously', 'just',
+];
+
+function countFillers(text: string): Record<string, number> {
+  const lower = text.toLowerCase();
+  const counts: Record<string, number> = {};
+  for (const filler of FILLER_PATTERNS) {
+    const regex = new RegExp(`\\b${filler}\\b`, 'gi');
+    const matches = lower.match(regex);
+    if (matches && matches.length > 0) {
+      counts[filler] = matches.length;
+    }
+  }
+  return counts;
+}
+
+function mergeFillerCounts(a: Record<string, number>, b: Record<string, number>): Record<string, number> {
+  const merged = { ...a };
+  for (const [k, v] of Object.entries(b)) {
+    merged[k] = (merged[k] || 0) + v;
+  }
+  return merged;
 }
 
 /* ─── Coaching hints ─────────────────────────────────────────────────── */
@@ -112,7 +173,6 @@ export function CallSimulator() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [turn, setTurn] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [inputValue, setInputValue] = useState('');
   const [scores, setScores] = useState<Scores | null>(null);
   const [evaluating, setEvaluating] = useState(false);
   const [currentHint, setCurrentHint] = useState<typeof COACHING_HINTS[0] | null>(null);
@@ -123,9 +183,32 @@ export function CallSimulator() {
   const [showHistory, setShowHistory] = useState(false);
   const [savingSession, setSavingSession] = useState(false);
 
+  const [isListening, setIsListening] = useState(false);
+  const [interimText, setInterimText] = useState('');
+  const [ttsEnabled, setTtsEnabled] = useState(true);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
+
+  // Speech analytics tracking
+  const [analytics, setAnalytics] = useState<SpeechAnalytics>({
+    totalWords: 0, fillerWords: {}, totalFillers: 0,
+    pauseCount: 0, avgPauseDuration: 0, longestPause: 0,
+    callDuration: 0, wordsPerMinute: 0, turnCount: 0, avgWordsPerTurn: 0,
+  });
+  const lastSpeechEndRef = useRef<number>(0);
+  const pauseDurationsRef = useRef<number[]>([]);
+  const wordsPerTurnRef = useRef<number[]>([]);
+  const pendingTranscriptRef = useRef('');
+
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const ttsEnabledRef = useRef(ttsEnabled);
+  ttsEnabledRef.current = ttsEnabled;
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef<number>(0);
 
   useEffect(() => {
     api.get<{ data: Prospect[] }>('/simulator/prospects')
@@ -149,6 +232,250 @@ export function CallSimulator() {
     if (timerRef.current) clearInterval(timerRef.current);
   }, [screen, callStartTime]);
 
+  /* ─── Audio level visualizer ──────────────────────────────────────── */
+
+  const startAudioVisualizer = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+      const ctx = new AudioContext();
+      audioContextRef.current = ctx;
+      const src = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      src.connect(analyser);
+      analyserRef.current = analyser;
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        analyser.getByteFrequencyData(dataArray);
+        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+        setAudioLevel(Math.min(avg / 128, 1));
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch {}
+  }, []);
+
+  const stopAudioVisualizer = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (audioContextRef.current) {
+      try { audioContextRef.current.close(); } catch {}
+      audioContextRef.current = null;
+    }
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach(t => t.stop());
+      audioStreamRef.current = null;
+    }
+    setAudioLevel(0);
+  }, []);
+
+  /* ─── Speech Recognition setup ──────────────────────────────────────── */
+
+  useEffect(() => {
+    if (!SpeechRecognitionCtor) return;
+    const recognition = new SpeechRecognitionCtor();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (e: any) => {
+      let interim = '';
+      let finalText = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const transcript = e.results[i][0].transcript;
+        if (e.results[i].isFinal) {
+          finalText += transcript;
+        } else {
+          interim += transcript;
+        }
+      }
+      if (finalText) {
+        pendingTranscriptRef.current = (pendingTranscriptRef.current ? pendingTranscriptRef.current + ' ' : '') + finalText.trim();
+        setInterimText('');
+      } else {
+        setInterimText(interim);
+      }
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      if (isListening) {
+        try { recognition.start(); } catch {}
+      }
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      try { recognition.stop(); } catch {}
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ─── TTS helpers ──────────────────────────────────────────────────── */
+
+  const pickVoice = useCallback((): SpeechSynthesisVoice | null => {
+    const voices = speechSynthesis.getVoices();
+    const preferred = ['Google US English', 'Microsoft David', 'Alex', 'Daniel'];
+    for (const name of preferred) {
+      const v = voices.find((v) => v.name.includes(name) && v.lang.startsWith('en'));
+      if (v) return v;
+    }
+    return voices.find((v) => v.lang.startsWith('en')) || null;
+  }, []);
+
+  const speakText = useCallback((text: string) => {
+    if (typeof speechSynthesis === 'undefined') return;
+    speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.05;
+    utterance.pitch = 0.95;
+    const voice = pickVoice();
+    if (voice) utterance.voice = voice;
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      // After AI finishes speaking, auto-start listening again
+      if (recognitionRef.current && screen === 'call') {
+        setTimeout(() => {
+          try {
+            recognitionRef.current.start();
+            setIsListening(true);
+            lastSpeechEndRef.current = Date.now();
+          } catch {}
+        }, 300);
+      }
+    };
+    utterance.onerror = () => setIsSpeaking(false);
+    speechSynthesis.speak(utterance);
+  }, [pickVoice, screen]);
+
+  const stopSpeaking = useCallback(() => {
+    if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+    setIsSpeaking(false);
+  }, []);
+
+  /* ─── Auto-speak AI messages ──────────────────────────────────────── */
+
+  useEffect(() => {
+    if (screen !== 'call' || !ttsEnabledRef.current || messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last.role === 'assistant' && !last.content.startsWith('[')) {
+      speakText(last.content);
+    }
+  }, [messages, screen, speakText]);
+
+  /* ─── Cleanup TTS on unmount / screen change ──────────────────────── */
+
+  useEffect(() => {
+    return () => {
+      if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+      stopAudioVisualizer();
+    };
+  }, [screen, stopAudioVisualizer]);
+
+  /* ─── Send voice message ──────────────────────────────────────────── */
+
+  const sendVoiceMessage = useCallback(async () => {
+    const text = pendingTranscriptRef.current.trim();
+    if (!text || isLoading) return;
+
+    // Stop listening while AI processes
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch {}
+      setIsListening(false);
+    }
+    stopSpeaking();
+
+    // Track pause from last speech end
+    if (lastSpeechEndRef.current > 0) {
+      const pauseMs = Date.now() - lastSpeechEndRef.current;
+      if (pauseMs > 2000) {
+        pauseDurationsRef.current.push(pauseMs / 1000);
+      }
+    }
+
+    // Track filler words and word count for this turn
+    const turnFillers = countFillers(text);
+    const turnWordCount = text.split(/\s+/).filter(Boolean).length;
+    wordsPerTurnRef.current.push(turnWordCount);
+
+    setAnalytics(prev => {
+      const newFillers = mergeFillerCounts(prev.fillerWords, turnFillers);
+      const newTotalFillers = Object.values(newFillers).reduce((a, b) => a + b, 0);
+      const newTotalWords = prev.totalWords + turnWordCount;
+      const newTurnCount = prev.turnCount + 1;
+      return {
+        ...prev,
+        totalWords: newTotalWords,
+        fillerWords: newFillers,
+        totalFillers: newTotalFillers,
+        turnCount: newTurnCount,
+        avgWordsPerTurn: Math.round(newTotalWords / newTurnCount),
+      };
+    });
+
+    pendingTranscriptRef.current = '';
+    setInterimText('');
+
+    const newMsg: Message = { role: 'user', content: text };
+    const newMessages = [...messages, newMsg];
+    setMessages(newMessages);
+    const newTurn = turn + 1;
+    setTurn(newTurn);
+
+    if (newTurn >= 3 && newTurn % 3 === 0) {
+      const hint = COACHING_HINTS[Math.floor(Math.random() * COACHING_HINTS.length)];
+      setCurrentHint(hint);
+      setTimeout(() => setCurrentHint(null), 8000);
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await api.post<{ response: string }>('/simulator/chat', {
+        niche: selNiche,
+        difficulty: selDiff,
+        messages: newMessages,
+      });
+      const aiMsg: Message = { role: 'assistant', content: res.response };
+      setMessages((prev) => [...prev, aiMsg]);
+      lastSpeechEndRef.current = Date.now();
+    } catch {
+      setMessages((prev) => [...prev, { role: 'assistant', content: '[Connection lost — try again]' }]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [messages, turn, isLoading, selNiche, selDiff, stopSpeaking]);
+
+  /* ─── Mic toggle for push-to-talk ─────────────────────────────────── */
+
+  function toggleMic() {
+    if (!recognitionRef.current) return;
+
+    if (isListening) {
+      // Stop listening and send what we have
+      recognitionRef.current.stop();
+      setIsListening(false);
+      setTimeout(() => sendVoiceMessage(), 200);
+    } else {
+      stopSpeaking();
+      setInterimText('');
+      pendingTranscriptRef.current = '';
+      startAudioVisualizer();
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+        if (lastSpeechEndRef.current === 0) lastSpeechEndRef.current = Date.now();
+      } catch {
+        setIsListening(false);
+      }
+    }
+  }
+
   async function loadStats() {
     try {
       const res = await api.get<{ data: Stats }>('/simulator/stats');
@@ -163,23 +490,6 @@ export function CallSimulator() {
     } catch {}
   }
 
-  const sendToAI = useCallback(async (msgs: Message[]) => {
-    setIsLoading(true);
-    try {
-      const res = await api.post<{ response: string }>('/simulator/chat', {
-        niche: selNiche,
-        difficulty: selDiff,
-        messages: msgs,
-      });
-      const aiMsg: Message = { role: 'assistant', content: res.response };
-      setMessages((prev) => [...prev, aiMsg]);
-    } catch {
-      setMessages((prev) => [...prev, { role: 'assistant', content: '[Connection lost — try again]' }]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selNiche, selDiff]);
-
   async function startCall() {
     if (!selNiche) return;
     const seedMsg: Message = { role: 'user', content: '[Phone rings and you pick up. Give your natural phone answer — just your name or business name, nothing else.]' };
@@ -189,31 +499,56 @@ export function CallSimulator() {
     setCurrentHint(null);
     setCallStartTime(Date.now());
     setCallTimer(0);
+    setAnalytics({
+      totalWords: 0, fillerWords: {}, totalFillers: 0,
+      pauseCount: 0, avgPauseDuration: 0, longestPause: 0,
+      callDuration: 0, wordsPerMinute: 0, turnCount: 0, avgWordsPerTurn: 0,
+    });
+    lastSpeechEndRef.current = 0;
+    pauseDurationsRef.current = [];
+    wordsPerTurnRef.current = [];
+    pendingTranscriptRef.current = '';
     setScreen('call');
-    await sendToAI([seedMsg]);
-  }
 
-  async function sendMessage() {
-    const text = inputValue.trim();
-    if (!text || isLoading) return;
-    setInputValue('');
-    const newMsg: Message = { role: 'user', content: text };
-    const newMessages = [...messages, newMsg];
-    setMessages(newMessages);
-    const newTurn = turn + 1;
-    setTurn(newTurn);
-
-    if (newTurn >= 3 && newTurn % 3 === 0) {
-      const hint = COACHING_HINTS[Math.floor(Math.random() * COACHING_HINTS.length)];
-      setCurrentHint(hint);
-      setTimeout(() => setCurrentHint(null), 8000);
+    setIsLoading(true);
+    try {
+      const res = await api.post<{ response: string }>('/simulator/chat', {
+        niche: selNiche,
+        difficulty: selDiff,
+        messages: [seedMsg],
+      });
+      const aiMsg: Message = { role: 'assistant', content: res.response };
+      setMessages((prev) => [...prev, aiMsg]);
+      lastSpeechEndRef.current = Date.now();
+    } catch {
+      setMessages((prev) => [...prev, { role: 'assistant', content: '[Connection lost — try again]' }]);
+    } finally {
+      setIsLoading(false);
     }
-
-    await sendToAI(newMessages);
   }
 
   async function endCall() {
     if (timerRef.current) clearInterval(timerRef.current);
+    stopSpeaking();
+    stopAudioVisualizer();
+    if (isListening && recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch {}
+      setIsListening(false);
+    }
+
+    // Finalize analytics
+    const pauses = pauseDurationsRef.current;
+    const finalCallDuration = Math.floor((Date.now() - callStartTime) / 1000);
+    const finalAnalytics: SpeechAnalytics = {
+      ...analytics,
+      pauseCount: pauses.length,
+      avgPauseDuration: pauses.length > 0 ? Math.round((pauses.reduce((a, b) => a + b, 0) / pauses.length) * 10) / 10 : 0,
+      longestPause: pauses.length > 0 ? Math.round(Math.max(...pauses) * 10) / 10 : 0,
+      callDuration: finalCallDuration,
+      wordsPerMinute: finalCallDuration > 0 ? Math.round((analytics.totalWords / finalCallDuration) * 60) : 0,
+    };
+    setAnalytics(finalAnalytics);
+
     setEvaluating(true);
     setScreen('feedback');
 
@@ -225,9 +560,10 @@ export function CallSimulator() {
         niche: selNiche,
         difficulty: selDiff,
         messages: callMessages,
+        speechAnalytics: finalAnalytics,
       });
       setScores(res.scores);
-      await saveSession(res.scores);
+      await saveSession(res.scores, finalAnalytics);
     } catch {
       setScores(null);
     } finally {
@@ -235,7 +571,7 @@ export function CallSimulator() {
     }
   }
 
-  async function saveSession(evalScores: Scores) {
+  async function saveSession(evalScores: Scores, finalAnalytics: SpeechAnalytics) {
     setSavingSession(true);
     const prospect = prospects.find((p) => p.id === selNiche);
     try {
@@ -248,7 +584,7 @@ export function CallSimulator() {
         scores: evalScores.scores,
         overall_score: evalScores.overall,
         would_have_booked: evalScores.wouldHaveBooked,
-        duration_seconds: callTimer,
+        duration_seconds: finalAnalytics.callDuration,
         turn_count: turn,
       });
       loadHistory();
@@ -265,18 +601,15 @@ export function CallSimulator() {
     setCurrentHint(null);
     setCallStartTime(0);
     setCallTimer(0);
-    setInputValue('');
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+    stopAudioVisualizer();
   }
 
   const prospect = prospects.find((p) => p.id === selNiche);
   const fmtTimer = `${Math.floor(callTimer / 60)}:${(callTimer % 60).toString().padStart(2, '0')}`;
+
+  const visibleMessages = messages.filter(
+    (m) => m.content !== '[Phone rings and you pick up. Give your natural phone answer — just your name or business name, nothing else.]'
+  );
 
   /* ═══ SETUP SCREEN ═══════════════════════════════════════════════════ */
 
@@ -293,7 +626,7 @@ export function CallSimulator() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Call Simulator</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Practice cold calls with AI prospects</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Voice-only cold call practice with AI</p>
               </div>
             </div>
             <button
@@ -306,7 +639,6 @@ export function CallSimulator() {
         </div>
 
         <div className="mx-auto max-w-5xl p-6">
-          {/* Stats row */}
           {stats && parseInt(stats.total_sessions) > 0 && (
             <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <StatBox label="Sessions" value={stats.total_sessions} />
@@ -317,7 +649,6 @@ export function CallSimulator() {
           )}
 
           {showHistory ? (
-            /* ─── History View ─── */
             <Card>
               <h2 className="mb-4 text-lg font-bold text-gray-900 dark:text-gray-100">Past Sessions</h2>
               {pastSessions.length === 0 ? (
@@ -351,9 +682,7 @@ export function CallSimulator() {
               )}
             </Card>
           ) : (
-            /* ─── Setup View ─── */
             <>
-              {/* Difficulty selector */}
               <div className="mb-6">
                 <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Difficulty</h2>
                 <div className="grid grid-cols-3 gap-3">
@@ -381,7 +710,6 @@ export function CallSimulator() {
                 </div>
               </div>
 
-              {/* Niche selector */}
               <div className="mb-6">
                 <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Choose a Prospect</h2>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -411,7 +739,12 @@ export function CallSimulator() {
                 </div>
               </div>
 
-              {/* Start button */}
+              {!SpeechRecognitionCtor && (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/10 dark:text-amber-300">
+                  Voice recognition is not supported in this browser. Please use Chrome or Edge for the full voice experience.
+                </div>
+              )}
+
               <div className="flex justify-center">
                 <button
                   onClick={startCall}
@@ -431,7 +764,7 @@ export function CallSimulator() {
     );
   }
 
-  /* ═══ CALL SCREEN ════════════════════════════════════════════════════ */
+  /* ═══ CALL SCREEN — Voice Only ═════════════════════════════════════ */
 
   if (screen === 'call') {
     return (
@@ -451,14 +784,34 @@ export function CallSimulator() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${DIFF_CONFIG[selDiff].color} ${selDiff === 'easy' ? 'bg-green-100 dark:bg-green-900/20' : selDiff === 'medium' ? 'bg-yellow-100 dark:bg-yellow-900/20' : 'bg-red-100 dark:bg-red-900/20'}`}>
-                  {selDiff}
-                </span>
-                <span className="font-mono text-sm font-bold tabular-nums text-gray-700 dark:text-gray-300">{fmtTimer}</span>
-                <span className="text-xs text-gray-400 dark:text-gray-500">Turn {turn}</span>
-              </div>
+            <div className="flex items-center gap-3">
+              <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${DIFF_CONFIG[selDiff].color} ${selDiff === 'easy' ? 'bg-green-100 dark:bg-green-900/20' : selDiff === 'medium' ? 'bg-yellow-100 dark:bg-yellow-900/20' : 'bg-red-100 dark:bg-red-900/20'}`}>
+                {selDiff}
+              </span>
+              <span className="font-mono text-sm font-bold tabular-nums text-gray-700 dark:text-gray-300">{fmtTimer}</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500">Turn {turn}</span>
+
+              <button
+                onClick={() => { setTtsEnabled(!ttsEnabled); if (ttsEnabled) stopSpeaking(); }}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  ttsEnabled
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                    : 'bg-gray-100 text-gray-500 dark:bg-[#111] dark:text-gray-500'
+                }`}
+                title={ttsEnabled ? 'Voice on — click to mute' : 'Voice off — click to unmute'}
+              >
+                {ttsEnabled ? (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M11 5L6 9H2v6h4l5 4V5z" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707A1 1 0 0112 5v14a1 1 0 01-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                  </svg>
+                )}
+                {ttsEnabled ? 'Voice' : 'Muted'}
+              </button>
+
               <button
                 onClick={endCall}
                 disabled={turn < 1}
@@ -473,10 +826,10 @@ export function CallSimulator() {
           </div>
         </div>
 
-        {/* Chat area */}
+        {/* Scrollable transcript */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <div className="mx-auto max-w-3xl space-y-3">
-            {messages.filter((m) => m.content !== '[Phone rings and you pick up. Give your natural phone answer — just your name or business name, nothing else.]').map((msg, i) => (
+            {visibleMessages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
                   msg.role === 'user'
@@ -522,35 +875,73 @@ export function CallSimulator() {
           </div>
         )}
 
-        {/* Input */}
-        <div className="border-t border-gray-200 bg-white px-6 py-4 dark:border-[#1a1a1a] dark:bg-black">
-          <div className="mx-auto flex max-w-3xl items-end gap-3">
-            <textarea
-              ref={inputRef}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type your response... (Enter to send, Shift+Enter for new line)"
-              rows={2}
-              disabled={isLoading}
-              className="flex-1 resize-none rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm shadow-sm transition-colors placeholder:text-gray-400 focus:border-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-500 disabled:opacity-50 dark:border-[#262626] dark:bg-[#0a0a0a] dark:text-gray-100 dark:placeholder:text-gray-500"
-            />
+        {/* Voice control area — no text input */}
+        <div className="border-t border-gray-200 bg-white px-6 py-6 dark:border-[#1a1a1a] dark:bg-black">
+          <div className="mx-auto flex max-w-3xl flex-col items-center gap-4">
+            {/* Interim transcript preview */}
+            {(isListening && (interimText || pendingTranscriptRef.current)) && (
+              <div className="w-full rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+                {pendingTranscriptRef.current}{interimText && <span className="opacity-60"> {interimText}</span>}
+              </div>
+            )}
+
+            {/* AI speaking indicator */}
+            {isSpeaking && (
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <div className="flex items-center gap-0.5">
+                  {[0, 1, 2, 3, 4].map(i => (
+                    <div key={i} className="w-1 rounded-full bg-blue-500 animate-pulse" style={{
+                      height: `${8 + Math.random() * 16}px`,
+                      animationDelay: `${i * 100}ms`,
+                    }} />
+                  ))}
+                </div>
+                <span>{prospect?.name} is speaking...</span>
+              </div>
+            )}
+
+            {/* Large mic button */}
             <button
-              onClick={sendMessage}
-              disabled={!inputValue.trim() || isLoading}
-              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white transition-colors hover:bg-black disabled:opacity-40 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+              onClick={toggleMic}
+              disabled={isLoading || isSpeaking}
+              className={`relative flex h-20 w-20 items-center justify-center rounded-full transition-all duration-300 disabled:opacity-40 ${
+                isListening
+                  ? 'bg-red-600 text-white shadow-xl shadow-red-600/40 scale-110'
+                  : 'bg-neutral-900 text-white hover:bg-black hover:scale-105 dark:bg-white dark:text-black dark:hover:bg-neutral-200'
+              }`}
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-7 7m7-7l7 7" />
+              {/* Audio level ring */}
+              {isListening && (
+                <span
+                  className="absolute inset-0 rounded-full border-4 border-red-400 transition-transform duration-75"
+                  style={{ transform: `scale(${1 + audioLevel * 0.5})`, opacity: 0.4 + audioLevel * 0.6 }}
+                />
+              )}
+              {isListening && (
+                <span className="absolute inset-0 animate-ping rounded-full bg-red-600 opacity-15" />
+              )}
+              <svg className="relative w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
               </svg>
             </button>
+
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              {isLoading
+                ? 'Waiting for response...'
+                : isSpeaking
+                  ? 'Prospect is speaking — wait for them to finish'
+                  : isListening
+                    ? 'Listening — tap to send your response'
+                    : 'Tap to speak'}
+            </p>
           </div>
         </div>
       </div>
     );
   }
 
-  /* ═══ FEEDBACK SCREEN ════════════════════════════════════════════════ */
+  /* ═══ FEEDBACK SCREEN — Enhanced ════════════════════════════════════ */
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-black">
@@ -605,10 +996,87 @@ export function CallSimulator() {
               </div>
             </Card>
 
+            {/* Speech Analytics Panel */}
+            <Card>
+              <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Speech Analytics</h3>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <AnalyticBox
+                  label="Words Per Min"
+                  value={analytics.wordsPerMinute.toString()}
+                  status={analytics.wordsPerMinute >= 130 && analytics.wordsPerMinute <= 170 ? 'good' : analytics.wordsPerMinute > 0 ? 'warn' : 'neutral'}
+                  hint="Target: 140-160 WPM"
+                />
+                <AnalyticBox
+                  label="Filler Words"
+                  value={analytics.totalFillers.toString()}
+                  status={analytics.totalFillers <= 3 ? 'good' : analytics.totalFillers <= 8 ? 'warn' : 'bad'}
+                  hint={analytics.totalFillers > 0 ? Object.entries(analytics.fillerWords).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([w, c]) => `"${w}" ×${c}`).join(', ') : 'None detected'}
+                />
+                <AnalyticBox
+                  label="Total Words"
+                  value={analytics.totalWords.toString()}
+                  status="neutral"
+                  hint={`${analytics.avgWordsPerTurn} avg/turn`}
+                />
+                <AnalyticBox
+                  label="Pauses (>2s)"
+                  value={analytics.pauseCount.toString()}
+                  status="neutral"
+                  hint={analytics.longestPause > 0 ? `Longest: ${analytics.longestPause}s` : 'No long pauses'}
+                />
+              </div>
+
+              {/* Filler word breakdown */}
+              {analytics.totalFillers > 0 && (
+                <div className="mt-4 rounded-lg border border-gray-200 p-3 dark:border-[#1a1a1a]">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Filler Word Breakdown</p>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(analytics.fillerWords)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([word, count]) => (
+                        <span key={word} className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                          "{word}" <span className="font-bold">×{count}</span>
+                        </span>
+                      ))
+                    }
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            {/* AI Speech Feedback */}
+            {scores.speechFeedback && (
+              <Card className="!border-purple-200 dark:!border-purple-900/50">
+                <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-purple-700 dark:text-purple-400">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                  Voice & Delivery Analysis
+                </h3>
+                <div className="space-y-3">
+                  {scores.speechFeedback.fillerVerdict && (
+                    <FeedbackItem icon="filler" title="Filler Words" text={scores.speechFeedback.fillerVerdict} />
+                  )}
+                  {scores.speechFeedback.pacingVerdict && (
+                    <FeedbackItem icon="pace" title="Pacing & Pauses" text={scores.speechFeedback.pacingVerdict} />
+                  )}
+                  {scores.speechFeedback.confidenceVerdict && (
+                    <FeedbackItem icon="confidence" title="Confidence" text={scores.speechFeedback.confidenceVerdict} />
+                  )}
+                  {scores.speechFeedback.topFix && (
+                    <div className="mt-4 rounded-lg border-2 border-purple-300 bg-purple-50 p-4 dark:border-purple-800 dark:bg-purple-900/10">
+                      <p className="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">Top Fix for Next Call</p>
+                      <p className="mt-1 text-sm font-medium text-purple-900 dark:text-purple-200">{scores.speechFeedback.topFix}</p>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
             {/* Category scores */}
             <Card>
               <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Skill Breakdown</h3>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 {Object.entries(scores.scores).map(([label, score]) => (
                   <div key={label} className="rounded-lg border border-gray-200 p-3 dark:border-[#1a1a1a]">
                     <div className="flex items-center justify-between mb-2">
@@ -673,13 +1141,38 @@ export function CallSimulator() {
               </Card>
             </div>
 
-            {/* Best line */}
-            {scores.bestLine && (
-              <Card className="!border-amber-200 dark:!border-amber-900/50">
-                <h3 className="mb-2 text-sm font-bold text-amber-700 dark:text-amber-400">Best Line</h3>
-                <blockquote className="border-l-4 border-amber-300 pl-4 text-sm italic text-gray-700 dark:border-amber-700 dark:text-gray-300">
-                  "{scores.bestLine}"
-                </blockquote>
+            {/* Best & Worst lines */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {scores.bestLine && (
+                <Card className="!border-amber-200 dark:!border-amber-900/50">
+                  <h3 className="mb-2 text-sm font-bold text-amber-700 dark:text-amber-400">Best Line</h3>
+                  <blockquote className="border-l-4 border-amber-300 pl-4 text-sm italic text-gray-700 dark:border-amber-700 dark:text-gray-300">
+                    "{scores.bestLine}"
+                  </blockquote>
+                </Card>
+              )}
+              {scores.worstLine && (
+                <Card className="!border-gray-300 dark:!border-gray-700">
+                  <h3 className="mb-2 text-sm font-bold text-gray-600 dark:text-gray-400">Weakest Moment</h3>
+                  <blockquote className="border-l-4 border-gray-300 pl-4 text-sm italic text-gray-600 dark:border-gray-600 dark:text-gray-400">
+                    "{scores.worstLine}"
+                  </blockquote>
+                </Card>
+              )}
+            </div>
+
+            {/* Rewritten opener */}
+            {scores.rewrittenOpener && (
+              <Card className="!border-blue-200 dark:!border-blue-900/50">
+                <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-blue-700 dark:text-blue-400">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  What You Should Have Said Instead
+                </h3>
+                <div className="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/10">
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-200">"{scores.rewrittenOpener}"</p>
+                </div>
               </Card>
             )}
 
@@ -690,7 +1183,7 @@ export function CallSimulator() {
                   View Full Transcript
                 </summary>
                 <div className="mt-3 max-h-96 space-y-2 overflow-y-auto">
-                  {messages.filter((m) => m.content !== '[Phone rings and you pick up. Give your natural phone answer — just your name or business name, nothing else.]').map((msg, i) => (
+                  {visibleMessages.map((msg, i) => (
                     <div key={i} className={`rounded-lg px-3 py-2 text-sm ${
                       msg.role === 'user'
                         ? 'ml-8 bg-neutral-100 dark:bg-[#111]'
@@ -722,13 +1215,54 @@ export function CallSimulator() {
   );
 }
 
-/* ─── Stat Box ───────────────────────────────────────────────────────── */
+/* ─── Sub-components ─────────────────────────────────────────────────── */
 
 function StatBox({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-[#1a1a1a] dark:bg-[#0a0a0a]">
       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">{label}</p>
       <p className="mt-1 text-2xl font-black text-gray-900 dark:text-gray-100">{value}</p>
+    </div>
+  );
+}
+
+function AnalyticBox({ label, value, status, hint }: { label: string; value: string; status: 'good' | 'warn' | 'bad' | 'neutral'; hint: string }) {
+  const colors = {
+    good: 'border-green-200 dark:border-green-900/50',
+    warn: 'border-yellow-200 dark:border-yellow-900/50',
+    bad: 'border-red-200 dark:border-red-900/50',
+    neutral: 'border-gray-200 dark:border-[#1a1a1a]',
+  };
+  const valueColors = {
+    good: 'text-green-600 dark:text-green-400',
+    warn: 'text-yellow-600 dark:text-yellow-400',
+    bad: 'text-red-600 dark:text-red-400',
+    neutral: 'text-gray-900 dark:text-gray-100',
+  };
+  return (
+    <div className={`rounded-lg border p-3 ${colors[status]}`}>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{label}</p>
+      <p className={`mt-1 text-2xl font-black ${valueColors[status]}`}>{value}</p>
+      <p className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">{hint}</p>
+    </div>
+  );
+}
+
+function FeedbackItem({ icon, title, text }: { icon: string; title: string; text: string }) {
+  const icons: Record<string, string> = {
+    filler: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
+    pace: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+    confidence: 'M13 10V3L4 14h7v7l9-11h-7z',
+  };
+  return (
+    <div className="flex items-start gap-3 rounded-lg bg-purple-50/50 p-3 dark:bg-purple-900/5">
+      <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d={icons[icon] || icons.filler} />
+      </svg>
+      <div>
+        <p className="text-xs font-bold text-purple-700 dark:text-purple-400">{title}</p>
+        <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300">{text}</p>
+      </div>
     </div>
   );
 }
