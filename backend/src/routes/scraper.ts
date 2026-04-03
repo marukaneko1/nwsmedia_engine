@@ -95,9 +95,10 @@ function buildChildEnv(projectRoot: string): NodeJS.ProcessEnv {
     if (key.startsWith('NEXT_PUBLIC_')) delete inherited[key];
   }
   let dbUrl =
+    process.env.ENGINE_DATABASE_URL ??
+    readEnvFromRoot(projectRoot, 'DATABASE_URL') ??
     inherited.DATABASE_URL ??
-    process.env.DATABASE_URL ??
-    readEnvFromRoot(projectRoot, 'DATABASE_URL');
+    process.env.DATABASE_URL;
   if (dbUrl && dbUrl.startsWith('postgresql://') && !dbUrl.includes('+asyncpg')) {
     dbUrl = dbUrl.replace('postgresql://', 'postgresql+asyncpg://');
   }
@@ -171,7 +172,6 @@ router.post('/run', async (req: Request, res: Response) => {
   const projectRoot = getProjectRoot();
   const pythonPath = getPythonPath(projectRoot);
   const runScript = path.join(projectRoot, 'run.py');
-
   if (!existsSync(runScript)) {
     res.status(400).json({ error: `run.py not found at ${runScript}. Set ENGINE_ROOT env var to the directory containing run.py.` });
     return;
@@ -187,7 +187,7 @@ router.post('/run', async (req: Request, res: Response) => {
   });
 
   let closed = false;
-  req.on('close', () => {
+  res.on('close', () => {
     closed = true;
     if (activeProc && !activeProc.killed) {
       activeProc.kill('SIGTERM');

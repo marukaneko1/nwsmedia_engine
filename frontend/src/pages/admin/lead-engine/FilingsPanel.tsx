@@ -89,7 +89,7 @@ export function FilingsPanel() {
     try {
       const res = await fetch('/api/scraper/run', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ command: selectedOp, args }),
         signal: controller.signal,
       });
@@ -136,7 +136,7 @@ export function FilingsPanel() {
   const stopCommand = useCallback(async () => {
     abortRef.current?.abort();
     const token = localStorage.getItem('token');
-    try { await fetch('/api/scraper/run', { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }); } catch {}
+    try { await fetch('/api/scraper/run', { method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {} }); } catch {}
     setStatus('error');
     setOutput(prev => [...prev, '\n[STOPPED by user]']);
   }, []);
@@ -149,7 +149,7 @@ export function FilingsPanel() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">New Business Filings</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">Import Secretary of State LLC/Corp filings and enrich with Apollo.io</p>
