@@ -14,7 +14,8 @@ type OperationId =
   | 'enrich'
   | 'backfill-emails'
   | 'generate-pdfs'
-  | 'rescore';
+  | 'rescore'
+  | 'dedup';
 
 interface Operation {
   id: OperationId;
@@ -35,6 +36,7 @@ const OPERATIONS: Operation[] = [
   { id: 'backfill-emails', label: 'Backfill Emails', description: 'Re-scrape Maps for missing emails', icon: 'M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75' },
   { id: 'generate-pdfs', label: 'Generate PDFs', description: 'Create audit PDF reports', icon: 'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z' },
   { id: 'rescore', label: 'Re-score', description: 'Clear and recalculate all lead scores', icon: 'M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182' },
+  { id: 'dedup', label: 'Deduplicate', description: 'Remove duplicate business entries', icon: 'M6 18L18 6M6 6l12 12' },
 ];
 
 const PRESET_NICHES = [

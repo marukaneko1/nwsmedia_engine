@@ -41,6 +41,7 @@ const TIER_OPTIONS = [
   { value: 'WARM', label: 'WARM' },
   { value: 'COOL', label: 'COOL' },
   { value: 'COLD', label: 'COLD' },
+  { value: 'SKIP', label: 'Skip' },
 ];
 
 const SEGMENT_OPTIONS = [
@@ -68,6 +69,9 @@ const SOURCE_OPTIONS = [
   { value: '', label: 'All Sources' },
   { value: 'google_maps', label: 'Google Maps' },
   { value: 'craigslist', label: 'Craigslist' },
+  { value: 'yelp', label: 'Yelp' },
+  { value: 'sos_fl', label: 'FL Filings' },
+  { value: 'sos_tx', label: 'TX Filings' },
 ];
 
 function tierBadgeVariant(tier: string | null): 'red' | 'yellow' | 'blue' | 'gray' {

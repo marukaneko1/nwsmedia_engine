@@ -11,6 +11,7 @@ logger = structlog.get_logger()
 
 YELP_API_BASE = "https://api.yelp.com/v3"
 SEARCH_ENDPOINT = f"{YELP_API_BASE}/businesses/search"
+DETAIL_ENDPOINT = f"{YELP_API_BASE}/businesses"
 
 CATEGORY_MAP = {
     "dentist": "dentists",
@@ -136,3 +137,47 @@ async def search_yelp(
 
     logger.info("yelp_search", term=term, location=location, results=len(results))
     return results
+
+
+async def enrich_yelp_details(businesses: list[dict]) -> list[dict]:
+    """Fetch website + hours for each business via the Yelp Business Details endpoint.
+
+    Rate-limited to ~5 QPS to stay within Yelp API limits.
+    """
+    api_key = settings.yelp_api_key
+    if not api_key or not businesses:
+        return businesses
+
+    headers = {"Authorization": f"Bearer {api_key}"}
+    timeout = aiohttp.ClientTimeout(total=15)
+
+    async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+        for biz in businesses:
+            yelp_id = biz.get("place_id", "").replace("yelp:", "")
+            if not yelp_id:
+                continue
+            try:
+                async with session.get(f"{DETAIL_ENDPOINT}/{yelp_id}") as resp:
+                    if resp.status == 429:
+                        logger.warning("yelp_detail_rate_limited")
+                        await asyncio.sleep(2)
+                        continue
+                    if resp.status != 200:
+                        continue
+                    data = await resp.json()
+
+                biz["website"] = data.get("url") if not data.get("url", "").startswith("https://www.yelp.com") else None
+                raw_hours = data.get("hours", [])
+                if raw_hours and isinstance(raw_hours, list) and raw_hours[0].get("open"):
+                    biz["hours"] = raw_hours[0]["open"]
+                if not biz.get("website"):
+                    biz["website"] = None
+
+            except Exception as e:
+                logger.warning("yelp_detail_failed", yelp_id=yelp_id, error=str(e))
+
+            await asyncio.sleep(0.2)
+
+    enriched = sum(1 for b in businesses if b.get("website"))
+    logger.info("yelp_details_enriched", total=len(businesses), with_website=enriched)
+    return businesses

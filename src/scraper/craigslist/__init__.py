@@ -176,6 +176,13 @@ def _build_business_dict(
     service_label = keyword or category
     area = detail.get("area") or listing.get("area", "")
 
+    zip_code = detail.get("zip_code")
+    if not zip_code and area:
+        import re
+        zip_match = re.search(r"\b(\d{5})\b", area)
+        if zip_match:
+            zip_code = zip_match.group(1)
+
     return {
         "place_id": place_id,
         "source_channel": "craigslist",
@@ -184,7 +191,7 @@ def _build_business_dict(
         "address": area,
         "city": city_name,
         "state": state,
-        "zip_code": None,
+        "zip_code": zip_code,
         "phone": detail.get("phone"),
         "email": detail.get("email"),
         "website": detail.get("website"),
@@ -192,7 +199,6 @@ def _build_business_dict(
         "review_count": 0,
         "latitude": detail.get("latitude"),
         "longitude": detail.get("longitude"),
-        "maps_url": listing.get("url"),
         "source_url": listing.get("url"),
         "listing_description": (detail.get("description") or "")[:5000],
         "post_id": post_id,
@@ -240,12 +246,10 @@ async def save_cl_businesses(session, businesses: list[dict]) -> int:
 
     Returns number of new records inserted.
     """
-    from src.database import async_session as _session_factory
     from src.models.business import Business
     from src.scraper.craigslist.deduplication import deduplicate_cl_results
 
-    async with _session_factory() as dedup_session:
-        unique = await deduplicate_cl_results(dedup_session, businesses)
+    unique = await deduplicate_cl_results(session, businesses)
 
     count = 0
     for biz in unique:
@@ -267,7 +271,6 @@ async def save_cl_businesses(session, businesses: list[dict]) -> int:
             review_count=biz.get("review_count", 0),
             latitude=biz.get("latitude"),
             longitude=biz.get("longitude"),
-            maps_url=biz.get("source_url"),
             source_url=biz.get("source_url"),
             listing_description=biz.get("listing_description"),
         )

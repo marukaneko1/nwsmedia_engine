@@ -14,6 +14,8 @@ type EngineStats = {
   cold_leads: string;
   craigslist_leads: string;
   gmaps_leads: string;
+  yelp_leads: string;
+  filings_leads: string;
   leads_24h: string;
   leads_7d: string;
 };
@@ -145,7 +147,7 @@ export function EngineOverview() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Yelp</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Unclaimed local businesses</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{num(s.yelp_leads).toLocaleString()} leads</p>
                 </div>
               </div>
               <Link to="/admin/lead-engine/yelp">
@@ -161,7 +163,7 @@ export function EngineOverview() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100">New Business Filings</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">SoS LLC/Corp incorporations</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{num(s.filings_leads).toLocaleString()} leads</p>
                 </div>
               </div>
               <Link to="/admin/lead-engine/filings">

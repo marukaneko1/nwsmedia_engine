@@ -125,6 +125,8 @@ router.get('/leads/stats', async (_req: Request, res: Response) => {
         (SELECT COUNT(*) FROM lead_scores WHERE tier = 'COLD') AS cold_leads,
         (SELECT COUNT(*) FROM businesses WHERE source_channel = 'craigslist') AS craigslist_leads,
         (SELECT COUNT(*) FROM businesses WHERE source_channel = 'google_maps' OR source_channel IS NULL) AS gmaps_leads,
+        (SELECT COUNT(*) FROM businesses WHERE source_channel = 'yelp') AS yelp_leads,
+        (SELECT COUNT(*) FROM businesses WHERE source_channel LIKE 'sos_%') AS filings_leads,
         (SELECT COUNT(*) FROM businesses WHERE scraped_at > NOW() - INTERVAL '24 hours') AS leads_24h,
         (SELECT COUNT(*) FROM businesses WHERE scraped_at > NOW() - INTERVAL '7 days') AS leads_7d
     `);

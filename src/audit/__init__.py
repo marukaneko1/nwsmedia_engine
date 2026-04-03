@@ -80,6 +80,19 @@ async def run_pagespeed(url: str) -> dict:
         a11y = cats.get("accessibility", {}).get("score")
         bp = cats.get("best-practices", {}).get("score")
 
+        viewport_audit = audits.get("viewport", {})
+        has_viewport = viewport_audit.get("score") == 1 if viewport_audit.get("score") is not None else None
+
+        tap_targets_audit = audits.get("tap-targets", {})
+        tap_targets_details = tap_targets_audit.get("details", {}).get("items", [])
+        small_tap_count = len(tap_targets_details) if tap_targets_details else 0
+
+        is_mobile = True
+        if has_viewport is False:
+            is_mobile = False
+        elif small_tap_count > 10:
+            is_mobile = False
+
         return {
             "performance_score": int(perf * 100) if perf is not None else None,
             "seo_score": int(seo * 100) if seo is not None else None,
@@ -91,6 +104,9 @@ async def run_pagespeed(url: str) -> dict:
             "fcp_seconds": round(metric_val("first-contentful-paint") / 1000, 2) if metric_val("first-contentful-paint") else None,
             "speed_index_seconds": round(metric_val("speed-index") / 1000, 2) if metric_val("speed-index") else None,
             "total_blocking_ms": round(metric_val("total-blocking-time"), 2) if metric_val("total-blocking-time") else None,
+            "has_viewport_meta": has_viewport,
+            "is_mobile_friendly": is_mobile,
+            "small_tap_targets": small_tap_count,
         }
     except Exception as e:
         logger.warning("pagespeed_failed", url=url, error=str(e))
@@ -249,10 +265,10 @@ async def run_audits(session, businesses_with_triage: list[tuple]) -> int:
             has_ssl=ssl_r.get("has_ssl"),
             ssl_valid=ssl_r.get("ssl_valid"),
             ssl_expires=ssl_r.get("ssl_expires"),
-            is_mobile_friendly=True,
-            has_viewport_meta=None,
+            is_mobile_friendly=ps.get("is_mobile_friendly", True),
+            has_viewport_meta=ps.get("has_viewport_meta"),
             has_horizontal_scroll=None,
-            small_tap_targets=None,
+            small_tap_targets=ps.get("small_tap_targets"),
             technologies=tech.get("technologies"),
             is_page_builder=tech.get("is_page_builder"),
             is_wordpress=tech.get("is_wordpress"),

@@ -96,8 +96,34 @@ async def extract_detail_from_panel(page: Page) -> dict:
                 result.review_count = 0;
             }
 
-            // Hours (simplified)
-            result.hours = null;
+            // Hours — extract from the expandable hours table
+            try {
+                const hoursRows = document.querySelectorAll('table.eK4R0e tr, table.WgFkxc tr, [aria-label*="hours"] table tr');
+                if (hoursRows.length > 0) {
+                    const h = {};
+                    hoursRows.forEach(row => {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length >= 2) {
+                            const day = cells[0].textContent.trim();
+                            const times = cells[1].textContent.trim();
+                            if (day) h[day] = times;
+                        }
+                    });
+                    result.hours = Object.keys(h).length > 0 ? h : null;
+                } else {
+                    result.hours = null;
+                }
+            } catch (e) {
+                result.hours = null;
+            }
+
+            // Photos count — count visible photo thumbnails
+            try {
+                const photoEls = document.querySelectorAll('button[aria-label*="photo"] img, div.ZKbJwe img, [data-photo-index] img');
+                result.photos_count = photoEls.length || 0;
+            } catch (e) {
+                result.photos_count = 0;
+            }
 
             // Place ID from URL — try multiple patterns
             const url = window.location.href;

@@ -9,7 +9,7 @@ from src.scraper.deduplication import (
     get_existing_name_keys,
     get_existing_place_ids,
 )
-from src.scraper.yelp.api_client import search_yelp
+from src.scraper.yelp.api_client import enrich_yelp_details, search_yelp
 from src.scraper.yelp.filters import apply_filters
 from src.utils.time import utcnow
 
@@ -33,6 +33,7 @@ async def scrape_yelp(
         max_reviews=max_reviews,
         require_website=require_website,
     )
+    filtered = await enrich_yelp_details(filtered)
     logger.info(
         "yelp_scrape",
         niche=niche,
@@ -103,8 +104,10 @@ async def save_yelp_businesses(session: AsyncSession, businesses: list[dict]) ->
             website=biz.get("website"),
             rating=biz.get("rating"),
             review_count=biz.get("review_count", 0),
+            photos_count=biz.get("photos_count", 0),
             latitude=biz.get("latitude"),
             longitude=biz.get("longitude"),
+            hours=biz.get("hours"),
             source_url=biz.get("source_url"),
             is_claimed=biz.get("is_claimed"),
             price_tier=biz.get("price_tier"),
@@ -112,6 +115,7 @@ async def save_yelp_businesses(session: AsyncSession, businesses: list[dict]) ->
         )
         session.add(record)
 
-    await session.commit()
+    if unique:
+        await session.commit()
     logger.info("yelp_saved", new=len(unique), skipped=len(businesses) - len(unique))
     return len(unique)

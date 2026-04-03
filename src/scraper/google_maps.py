@@ -193,12 +193,9 @@ async def save_businesses(session, businesses: list[dict]) -> int:
         get_existing_place_ids,
     )
 
-    from src.database import async_session as _session_factory
-
     place_ids = [b["place_id"] for b in businesses if b.get("place_id")]
-    async with _session_factory() as dedup_session:
-        existing_pids = await get_existing_place_ids(dedup_session, place_ids)
-        existing_names = await get_existing_name_keys(dedup_session)
+    existing_pids = await get_existing_place_ids(session, place_ids)
+    existing_names = await get_existing_name_keys(session)
     unique = deduplicate_results(businesses, existing_pids, existing_names)
 
     count = 0
@@ -207,6 +204,7 @@ async def save_businesses(session, businesses: list[dict]) -> int:
             continue
         record = Business(
             place_id=biz["place_id"],
+            source_channel="google_maps",
             name=biz["name"],
             category=biz.get("category"),
             address=biz.get("address"),
@@ -218,10 +216,12 @@ async def save_businesses(session, businesses: list[dict]) -> int:
             website=biz.get("website"),
             rating=biz.get("rating"),
             review_count=biz.get("review_count", 0),
+            photos_count=biz.get("photos_count", 0),
             latitude=biz.get("latitude"),
             longitude=biz.get("longitude"),
             hours=biz.get("hours"),
             maps_url=biz.get("maps_url"),
+            source_url=biz.get("maps_url"),
         )
         session.add(record)
         count += 1
