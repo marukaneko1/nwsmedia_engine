@@ -35,7 +35,7 @@ RUN apk add --no-cache tini python3 py3-pip
 
 WORKDIR /app
 
-# ── Node backend ─────────────────────────────────────────────────────────
+# ── Node backend ────────────────────────────────────────────────────────
 COPY --from=builder /app/shared ./shared/
 COPY --from=builder /app/backend/package*.json ./backend/
 
@@ -48,7 +48,7 @@ COPY --from=builder /app/backend/tsconfig.json ./
 RUN mkdir -p uploads/chat uploads/training
 RUN npm install -g tsx
 
-# ── Python lead engine ───────────────────────────────────────────────────
+# ── Python lead engine ─────────────────────────────────────────────────
 WORKDIR /app
 COPY pyproject.toml run.py ./
 COPY src/ ./src/
